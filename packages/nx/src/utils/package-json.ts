@@ -2,14 +2,19 @@ import { existsSync } from 'fs';
 import { dirname, join } from 'path';
 import {
   InputDefinition,
+  ProjectMetadata,
   TargetConfiguration,
 } from '../config/workspace-json-project-json';
 import { mergeTargetConfigurations } from '../project-graph/utils/project-configuration-utils';
 import { readJsonFile } from './fileutils';
 import { getNxRequirePaths } from './installation-directory';
-import { getPackageManagerCommand } from './package-manager';
+import {
+  PackageManagerCommands,
+  getPackageManagerCommand,
+} from './package-manager';
 
 export interface NxProjectPackageJsonConfiguration {
+  name?: string;
   implicitDependencies?: string[];
   tags?: string[];
   namedInputs?: { [inputName: string]: (string | InputDefinition)[] };
@@ -72,6 +77,9 @@ export interface PackageJson {
   executors?: string;
   'nx-migrations'?: string | NxMigrationsConfiguration;
   'ng-update'?: string | NxMigrationsConfiguration;
+  packageManager?: string;
+  description?: string;
+  keywords?: string[];
 }
 
 export function normalizePackageGroup(
@@ -118,9 +126,9 @@ export function readNxMigrateConfig(
 
 export function buildTargetFromScript(
   script: string,
-  scripts: Record<string, string> = {}
+  scripts: Record<string, string> = {},
+  packageManagerCommand: PackageManagerCommands
 ): TargetConfiguration {
-  const packageManagerCommand = getPackageManagerCommand();
   return {
     executor: 'nx:run-script',
     options: {
@@ -133,13 +141,39 @@ export function buildTargetFromScript(
   };
 }
 
+let packageManagerCommand: PackageManagerCommands | undefined;
+
+export function getMetadataFromPackageJson(
+  packageJson: PackageJson
+): ProjectMetadata {
+  const { scripts, nx, description } = packageJson ?? {};
+  const includedScripts = nx?.includedScripts || Object.keys(scripts ?? {});
+  return {
+    targetGroups: {
+      ...(includedScripts.length ? { 'NPM Scripts': includedScripts } : {}),
+    },
+    description,
+  };
+}
+
+export function getTagsFromPackageJson(packageJson: PackageJson): string[] {
+  const tags = packageJson.private ? ['npm:private'] : ['npm:public'];
+  if (packageJson.keywords?.length) {
+    tags.push(...packageJson.keywords.map((k) => `npm:${k}`));
+  }
+  if (packageJson?.nx?.tags?.length) {
+    tags.push(...packageJson?.nx.tags);
+  }
+  return tags;
+}
+
 export function readTargetsFromPackageJson(packageJson: PackageJson) {
   const { scripts, nx, private: isPrivate } = packageJson ?? {};
   const res: Record<string, TargetConfiguration> = {};
   const includedScripts = nx?.includedScripts || Object.keys(scripts ?? {});
-  //
+  packageManagerCommand ??= getPackageManagerCommand();
   for (const script of includedScripts) {
-    res[script] = buildTargetFromScript(script, scripts);
+    res[script] = buildTargetFromScript(script, scripts, packageManagerCommand);
   }
   for (const targetName in nx?.targets) {
     res[targetName] = mergeTargetConfigurations(

@@ -16,7 +16,7 @@ import { ReleaseVersion, noDiffInChangelogMessage } from './shared';
 
 // axios types and values don't seem to match
 import _axios = require('axios');
-const axios = _axios as any as typeof _axios['default'];
+const axios = _axios as any as (typeof _axios)['default'];
 
 export type RepoSlug = `${string}/${string}`;
 
@@ -318,7 +318,7 @@ export async function resolveGithubToken(): Promise<string | null> {
   );
   if (existsSync(ghCLIPath)) {
     const yamlContents = await fsp.readFile(ghCLIPath, 'utf8');
-    const { load } = require('js-yaml');
+    const { load } = require('@zkochan/js-yaml');
     const ghCLIConfig = load(yamlContents);
     if (ghCLIConfig['github.com']) {
       // Web based session (the token is already embedded in the config)

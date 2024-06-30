@@ -4,11 +4,11 @@ import {
   cleanupProject,
   isNotWindows,
   newProject,
+  readFile,
   readJson,
   runCLI,
   uniq,
   updateFile,
-  readFile,
   updateJson,
 } from '@nx/e2e/utils';
 import { join } from 'path';
@@ -292,49 +292,64 @@ describe('Extra Nx Misc Tests', () => {
   });
 
   describe('Env File', () => {
-    it('should have the right env', () => {
-      const appName = uniq('app');
+    const libName = uniq('lib');
+
+    beforeAll(() => {
       runCLI(
-        `generate @nx/react:app ${appName} --style=css --bundler=webpack --no-interactive`
+        `generate @nx/js:lib ${libName} --bundler=none --unitTestRunner=none --no-interactive`
       );
+    });
+
+    it('should have the right env', () => {
       updateFile(
         '.env',
         `FIRSTNAME="firstname"
-  LASTNAME="lastname"
-  NX_USERNAME=$FIRSTNAME $LASTNAME`
+LASTNAME="lastname"
+NX_USERNAME=$FIRSTNAME $LASTNAME`
       );
-      updateFile(
-        `apps/${appName}/src/app/app.tsx`,
-        `
-      import NxWelcome from './nx-welcome';
-  
-      export function App() {
-        return (
-          <>
-            <NxWelcome title={process.env.NX_USERNAME} />
-          </>
-        );
-      }
-  
-      export default App;
-    `
-      );
-      updateFile(
-        `apps/${appName}/src/app/app.spec.tsx`,
-        `import { render } from '@testing-library/react';
-  
-    import App from './app';
-    
-    describe('App', () => {
-      it('should have a greeting as the title', () => {
-        const { getByText } = render(<App />);
-        expect(getByText(/Welcome firstname lastname/gi)).toBeTruthy();
+      updateJson(join('libs', libName, 'project.json'), (config) => {
+        config.targets.echo = {
+          command: 'echo $NX_USERNAME',
+        };
+        return config;
       });
+      let result = runCLI(`run ${libName}:echo`);
+      expect(result).toContain('firstname lastname');
+
+      updateFile('.env', (content) => {
+        content = content.replace('firstname', 'firstname2');
+        content = content.replace('lastname', 'lastname2');
+        return content;
+      });
+      result = runCLI(`run ${libName}:echo`);
+      expect(result).toContain('firstname2 lastname2');
     });
-  `
-      );
-      const unitTestsOutput = runCLI(`test ${appName}`);
-      expect(unitTestsOutput).toContain('Successfully ran target test');
+
+    it('should work with custom env file', () => {
+      updateFile(`libs/${libName}/.custom1.env`, `hello="hello1"`);
+      updateFile(`libs/${libName}/.custom2.env`, `hello="hello2"`);
+      updateJson(join('libs', libName, 'project.json'), (config) => {
+        config.targets.hello1 = {
+          command: 'echo $hello',
+          options: {
+            envFile: `libs/${libName}/.custom1.env`,
+          },
+        };
+        config.targets.hello2 = {
+          command: 'echo $hello',
+          options: {
+            envFile: `libs/${libName}/.custom2.env`,
+          },
+        };
+        return config;
+      });
+      let result = runCLI(`run ${libName}:hello1`);
+      expect(result).toContain('hello1');
+      result = runCLI(`run ${libName}:hello2`);
+      expect(result).toContain('hello2');
+      result = runCLI(`run-many --target=hello1,hello2`);
+      expect(result).toContain('hello1');
+      expect(result).toContain('hello2');
     });
   });
 
@@ -357,28 +372,17 @@ describe('Extra Nx Misc Tests', () => {
     it('should correctly expand default task inputs', () => {
       runCLI('graph --file=graph.html');
 
-      expect(readExpandedTaskInputResponse()[`${baseLib}:build`])
-        .toMatchInlineSnapshot(`
-        {
-          "external": [
-            "npm:@nx/js",
-            "npm:tslib",
-          ],
-          "general": [
-            ".gitignore",
-            "nx.json",
-          ],
-          "lib-base-123": [
-            "libs/lib-base-123/README.md",
-            "libs/lib-base-123/package.json",
-            "libs/lib-base-123/project.json",
-            "libs/lib-base-123/src/index.ts",
-            "libs/lib-base-123/src/lib/lib-base-123.ts",
-            "libs/lib-base-123/tsconfig.json",
-            "libs/lib-base-123/tsconfig.lib.json",
-          ],
-        }
-      `);
+      const expandedInputs =
+        readExpandedTaskInputResponse()[`${baseLib}:build`];
+
+      // Executor
+      expect(expandedInputs.external).toContain('npm:@nx/js');
+      // Dependency of the executor package
+      expect(expandedInputs.external).toContain('npm:@nx/devkit');
+
+      // Don't include external nodes in the snapshot
+      delete expandedInputs.external;
+      expect(expandedInputs).toMatchSnapshot();
     });
 
     it('should correctly expand dependent task inputs', () => {
@@ -400,45 +404,17 @@ describe('Extra Nx Misc Tests', () => {
       });
       runCLI('graph --file=graph.html');
 
-      expect(readExpandedTaskInputResponse()[`${baseLib}:build`])
-        .toMatchInlineSnapshot(`
-        {
-          "external": [
-            "npm:@nx/js",
-            "npm:tslib",
-          ],
-          "general": [
-            ".gitignore",
-            "nx.json",
-          ],
-          "lib-base-123": [
-            "libs/lib-base-123/.eslintrc.json",
-            "libs/lib-base-123/README.md",
-            "libs/lib-base-123/jest.config.ts",
-            "libs/lib-base-123/package.json",
-            "libs/lib-base-123/project.json",
-            "libs/lib-base-123/src/index.ts",
-            "libs/lib-base-123/src/lib/lib-base-123.spec.ts",
-            "libs/lib-base-123/src/lib/lib-base-123.ts",
-            "libs/lib-base-123/tsconfig.json",
-            "libs/lib-base-123/tsconfig.lib.json",
-            "libs/lib-base-123/tsconfig.spec.json",
-          ],
-          "lib-dependent-123": [
-            "libs/lib-dependent-123/.eslintrc.json",
-            "libs/lib-dependent-123/README.md",
-            "libs/lib-dependent-123/jest.config.ts",
-            "libs/lib-dependent-123/package.json",
-            "libs/lib-dependent-123/project.json",
-            "libs/lib-dependent-123/src/index.ts",
-            "libs/lib-dependent-123/src/lib/lib-dependent-123.spec.ts",
-            "libs/lib-dependent-123/src/lib/lib-dependent-123.ts",
-            "libs/lib-dependent-123/tsconfig.json",
-            "libs/lib-dependent-123/tsconfig.lib.json",
-            "libs/lib-dependent-123/tsconfig.spec.json",
-          ],
-        }
-      `);
+      const expandedInputs =
+        readExpandedTaskInputResponse()[`${baseLib}:build`];
+
+      // Executor
+      expect(expandedInputs.external).toContain('npm:@nx/js');
+      // Dependency of the executor package
+      expect(expandedInputs.external).toContain('npm:@nx/devkit');
+
+      // Don't include external nodes in the snapshot
+      delete expandedInputs.external;
+      expect(expandedInputs).toMatchSnapshot();
     });
   });
 });

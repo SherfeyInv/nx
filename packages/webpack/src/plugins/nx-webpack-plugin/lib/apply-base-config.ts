@@ -100,7 +100,11 @@ function applyNxIndependentConfig(
     path:
       config.output?.path ??
       (options.outputPath
-        ? path.join(options.root, options.outputPath)
+        ? // If path is relative, it is relative from project root (aka cwd).
+          // Otherwise, it is relative to workspace root (legacy behavior).
+          options.outputPath.startsWith('.')
+          ? path.join(options.root, options.projectRoot, options.outputPath)
+          : path.join(options.root, options.outputPath)
         : undefined),
     filename:
       config.output?.filename ??
@@ -219,9 +223,8 @@ function applyNxDependentConfig(
   { useNormalizedEntry }: { useNormalizedEntry?: boolean } = {}
 ): void {
   const tsConfig = options.tsConfig ?? getRootTsConfigPath();
-  const plugins: WebpackPluginInstance[] = [
-    new NxTsconfigPathsWebpackPlugin({ tsConfig }),
-  ];
+  const plugins: WebpackPluginInstance[] = [];
+
   const executorContext: Partial<ExecutorContext> = {
     projectName: options.projectName,
     targetName: options.targetName,
@@ -229,6 +232,8 @@ function applyNxDependentConfig(
     configurationName: options.configurationName,
     root: options.root,
   };
+
+  plugins.push(new NxTsconfigPathsWebpackPlugin({ ...options, tsConfig }));
 
   if (!options?.skipTypeChecking) {
     const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');

@@ -21,7 +21,13 @@ export type ReleaseVersionGeneratorResult = {
       verbose?: boolean;
       generatorOptions?: Record<string, unknown>;
     }
-  ) => Promise<string[]>;
+  ) => Promise<
+    | string[]
+    | {
+        changedFiles: string[];
+        deletedFiles: string[];
+      }
+  >;
 };
 
 export type VersionData = Record<
@@ -33,7 +39,11 @@ export type VersionData = Record<
      */
     newVersion: string | null;
     currentVersion: string;
-    dependentProjects: any[]; // TODO: investigate generic type for this once more ecosystems are explored
+    /**
+     * The list of projects which depend upon the current project.
+     * TODO: investigate generic type for this once more ecosystems are explored
+     */
+    dependentProjects: any[];
   }
 >;
 
@@ -65,20 +75,29 @@ export class ReleaseVersion {
   }
 }
 
-export async function commitChanges(
-  changedFiles: string[],
-  isDryRun: boolean,
-  isVerbose: boolean,
-  gitCommitMessages: string[],
-  gitCommitArgs?: string
-) {
-  if (!changedFiles.length) {
+export async function commitChanges({
+  changedFiles,
+  deletedFiles,
+  isDryRun,
+  isVerbose,
+  gitCommitMessages,
+  gitCommitArgs,
+}: {
+  changedFiles?: string[];
+  deletedFiles?: string[];
+  isDryRun?: boolean;
+  isVerbose?: boolean;
+  gitCommitMessages?: string[];
+  gitCommitArgs?: string;
+}) {
+  if (!changedFiles?.length && !deletedFiles?.length) {
     throw new Error('Error: No changed files to commit');
   }
 
   output.logSingleLine(`Committing changes with git`);
   await gitAdd({
     changedFiles,
+    deletedFiles,
     dryRun: isDryRun,
     verbose: isVerbose,
   });

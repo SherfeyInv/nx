@@ -12,7 +12,8 @@
     "Monorepo",
     "Java",
     "Gradle",
-    "CLI"
+    "CLI",
+    "Backend"
   ],
   "main": "./index",
   "typings": "./index.d.ts",
@@ -29,7 +30,7 @@
     "./migrations.json": "./migrations.json",
     "./generators.json": "./generators.json"
   },
-  "nx-migrate": {
+  "nx-migrations": {
     "migrations": "./migrations.json"
   },
   "dependencies": {

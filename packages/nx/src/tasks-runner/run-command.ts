@@ -16,6 +16,7 @@ import { createRunOneDynamicOutputRenderer } from './life-cycles/dynamic-run-one
 import { ProjectGraph, ProjectGraphProjectNode } from '../config/project-graph';
 import {
   NxJsonConfiguration,
+  readNxJson,
   TargetDefaults,
   TargetDependencies,
 } from '../config/nx-json';
@@ -28,6 +29,8 @@ import { hashTasksThatDoNotDependOnOutputsOfOtherTasks } from '../hasher/hash-ta
 import { daemonClient } from '../daemon/client/client';
 import { StoreRunInformationLifeCycle } from './life-cycles/store-run-information-life-cycle';
 import { createTaskHasher } from '../hasher/create-task-hasher';
+import { TaskHistoryLifeCycle } from './life-cycles/task-history-life-cycle';
+import { isNxCloudUsed } from '../utils/nx-cloud-utils';
 
 async function getTerminalOutputLifeCycle(
   initiatingProject: string,
@@ -90,7 +93,7 @@ async function getTerminalOutputLifeCycle(
 
 function createTaskGraphAndValidateCycles(
   projectGraph: ProjectGraph,
-  defaultDependencyConfigs: TargetDependencies,
+  extraTargetDependencies: TargetDependencies,
   projectNames: string[],
   nxArgs: NxArgs,
   overrides: any,
@@ -101,7 +104,7 @@ function createTaskGraphAndValidateCycles(
 ) {
   const taskGraph = createTaskGraph(
     projectGraph,
-    defaultDependencyConfigs,
+    extraTargetDependencies,
     projectNames,
     nxArgs.targets,
     nxArgs.configuration,
@@ -142,15 +145,11 @@ export async function runCommand(
   const status = await handleErrors(
     process.env.NX_VERBOSE_LOGGING === 'true',
     async () => {
-      const defaultDependencyConfigs = mergeTargetDependencies(
-        nxJson.targetDefaults,
-        extraTargetDependencies
-      );
       const projectNames = projectsToRun.map((t) => t.name);
 
       const taskGraph = createTaskGraphAndValidateCycles(
         projectGraph,
-        defaultDependencyConfigs,
+        extraTargetDependencies ?? {},
         projectNames,
         nxArgs,
         overrides,
@@ -328,6 +327,9 @@ function constructLifeCycles(lifeCycle: LifeCycle) {
   }
   if (process.env.NX_PROFILE) {
     lifeCycles.push(new TaskProfilingLifeCycle(process.env.NX_PROFILE));
+  }
+  if (!isNxCloudUsed(readNxJson())) {
+    lifeCycles.push(new TaskHistoryLifeCycle());
   }
   return lifeCycles;
 }

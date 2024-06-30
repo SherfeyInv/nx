@@ -1,5 +1,6 @@
 ---
 title: Manage Your Gradle Project using Nx
+slug: 'manage-your-gradle-project-using-nx'
 authors: ['Emily Xiong']
 cover_image: '/blog/images/2024-04-19/featured_img.png'
 tags: [nx, gradle, how-to]
@@ -212,6 +213,6 @@ Here is how to set up Nx with the Gradle workspace. Hopefully, this gives you a 
 - [Nx Docs](/getting-started/intro)
 - [X/Twitter](https://twitter.com/nxdevtools) -- [LinkedIn](https://www.linkedin.com/company/nrwl/)
 - [Nx GitHub](https://github.com/nrwl/nx)
-- [Nx Official Discord Server](/community)
+- [Nx Official Discord Server](https://go.nx.dev/community)
 - [Nx Youtube Channel](https://www.youtube.com/@nxdevtools)
 - [Speed up your CI](https://nx.app/)

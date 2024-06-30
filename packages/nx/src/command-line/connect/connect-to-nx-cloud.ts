@@ -2,6 +2,7 @@ import { output } from '../../utils/output';
 import { readNxJson } from '../../config/configuration';
 import { FsTree, flushChanges } from '../../generators/tree';
 import { connectToNxCloud } from '../../nx-cloud/generators/connect-to-nx-cloud/connect-to-nx-cloud';
+import { shortenedCloudUrl } from '../../nx-cloud/utilities/url-shorten';
 import { getNxCloudUrl, isNxCloudUsed } from '../../utils/nx-cloud-utils';
 import { runNxSync } from '../../utils/child-process';
 import { NxJsonConfiguration } from '../../config/nx-json';
@@ -49,24 +50,40 @@ export async function connectToNxCloudIfExplicitlyAsked(
   }
 }
 
-export async function connectToNxCloudCommand(): Promise<boolean> {
+export async function connectToNxCloudCommand(
+  command?: string
+): Promise<boolean> {
   const nxJson = readNxJson();
+
   if (isNxCloudUsed(nxJson)) {
+    const token =
+      process.env.NX_CLOUD_ACCESS_TOKEN || nxJson.nxCloudAccessToken;
+    if (!token) {
+      throw new Error(
+        `Unable to authenticate. Either define accessToken in nx.json or set the NX_CLOUD_ACCESS_TOKEN env variable.`
+      );
+    }
+    const connectCloudUrl = await shortenedCloudUrl('nx-connect', token);
     output.log({
       title: '✔ This workspace already has Nx Cloud set up',
       bodyLines: [
         'If you have not done so already, connect your workspace to your Nx Cloud account:',
-        `- Login at ${getNxCloudUrl(nxJson)} to connect your repository`,
+        `- Connect with Nx Cloud at: 
+      
+        ${connectCloudUrl}`,
       ],
     });
+
     return false;
   }
 
   const tree = new FsTree(workspaceRoot, false, 'connect-to-nx-cloud');
-  const callback = await connectToNxCloud(tree, {});
+  const callback = await connectToNxCloud(tree, {
+    installationSource: command ?? 'nx-connect',
+  });
   tree.lock();
   flushChanges(workspaceRoot, tree.listChanges());
-  callback();
+  await callback();
 
   return true;
 }
@@ -74,7 +91,7 @@ export async function connectToNxCloudCommand(): Promise<boolean> {
 export async function connectToNxCloudWithPrompt(command: string) {
   const setNxCloud = await nxCloudPrompt('setupNxCloud');
   const useCloud =
-    setNxCloud === 'yes' ? await connectToNxCloudCommand() : false;
+    setNxCloud === 'yes' ? await connectToNxCloudCommand(command) : false;
   await recordStat({
     command,
     nxVersion,

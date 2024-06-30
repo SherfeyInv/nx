@@ -7,6 +7,7 @@ exports[`preset should create files (preset = angular-monorepo) 1`] = `
   "tsconfig.app.json",
   "tsconfig.editor.json",
   "tsconfig.json",
+  "public",
   ".eslintrc.json",
   "jest.config.ts",
   "tsconfig.spec.json",
@@ -15,8 +16,6 @@ exports[`preset should create files (preset = angular-monorepo) 1`] = `
 
 exports[`preset should create files (preset = angular-monorepo) 2`] = `
 [
-  "assets",
-  "favicon.ico",
   "index.html",
   "styles.css",
   "app",
@@ -107,6 +106,7 @@ export default defineConfig({
   },
 
   test: {
+    watch: false,
     globals: true,
     cache: {
       dir: './node_modules/.vitest/proj',
@@ -195,6 +195,7 @@ export default defineConfig({
   },
 
   test: {
+    watch: false,
     globals: true,
     cache: {
       dir: '../../node_modules/.vitest/apps/proj',
@@ -249,6 +250,7 @@ export default defineConfig({
   },
 
   test: {
+    watch: false,
     globals: true,
     cache: {
       dir: './node_modules/.vitest/proj',

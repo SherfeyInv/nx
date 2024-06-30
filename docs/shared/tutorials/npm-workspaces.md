@@ -302,7 +302,7 @@ First, let's delete the `outputs` array from `nx.json` so that we don't override
 Now let's add the `@nx/vite` plugin:
 
 ```{% command="npx nx add @nx/vite" path="~/tuskydesign" %}
-✔ Installing @nx/vite@18.1.0...
+✔ Installing @nx/vite...
 ✔ Initializing @nx/vite...
 
  NX   Package @nx/vite added successfully.
@@ -311,13 +311,13 @@ Now let's add the `@nx/vite` plugin:
 The `nx add` command installs the version of the plugin that matches your repo's Nx version and runs that plugin's initialization script. For `@nx/vite`, the initialization script registers the plugin in the `plugins` array of `nx.json` and updates any `package.json` scripts that execute Vite related tasks. Open the project details view for the `demo` app and look at the `build` task.
 
 ```shell {% path="~/tuskydesigns" %}
-npx nx show project @tuskdesign/demo --web
+npx nx show project @tuskdesign/demo
 ```
 
 {% project-details title="Project Details View" jsonFile="shared/tutorials/npm-workspaces-pdv.json" %}
 {% /project-details %}
 
-If you hover over the settings for the `build` task, you can see where those settings come from. The `inputs` and `outputs` are defined by the `@nx/vite` plugin from the `vite.config.ts` file where as the `dependsOn` property we set earlier in the tutorial in the `targetDefaults` in the `nx.json` file.
+If you hover over the settings for the `vite:build` task, you can see where those settings come from. The `inputs` and `outputs` are defined by the `@nx/vite` plugin from the `vite.config.ts` file where as the `dependsOn` property we set earlier in the tutorial in the `targetDefaults` in the `nx.json` file.
 
 Now let's change where the `build` results are output to in the `vite.config.ts` file.
 
@@ -403,7 +403,7 @@ This generator creates a `.github/workflows/ci.yml` file that contains a CI pipe
 The key line in the CI pipeline is:
 
 ```yml
-- run: npx nx affected -t lint test build e2e-ci
+- run: npx nx affected -t lint test build
 ```
 
 ### Connect to Nx Cloud
@@ -415,15 +415,15 @@ To connect to Nx Cloud:
 - Commit and push your changes to GitHub
 - Go to [https://cloud.nx.app](https://cloud.nx.app), create an account, and connect your repository
 
-![Connect to your repository](/shared/tutorials/connect-to-repository.webp)
+#### Connect to Nx Cloud Manually
 
-`cloud.nx.app` will send a PR to your repository enabling Nx Cloud, after which caching, distribution and more will start working.
+If you are not able to connect via the automated process at [nx.app](https://cloud.nx.app), you can connect your workspace manually by running:
 
-![Add an Nx Cloud access token to your repository dialog](/shared/tutorials/send-cloud-pr.webp)
+```shell
+npx nx connect
+```
 
-Once you merge that PR, you'll be able to see CI pipeline runs appearing in the Nx Cloud dashboard:
-
-![CI Pipeline Executions](/shared/tutorials/ci-pipeline-executions.webp)
+You will then need to merge your changes and connect to your workspace on [https://cloud.nx.app](https://cloud.nx.app).
 
 ### Enable a Distributed CI Pipeline
 
@@ -432,8 +432,6 @@ The current CI pipeline runs on a single machine and can only handle small works
 ```yml
 - run: npx nx-cloud start-ci-run --distribute-on="5 linux-medium-js" --stop-agents-after="e2e-ci"
 ```
-
-![Run details](/shared/tutorials/gradle-run-details.webp)
 
 For more information about how Nx can improve your CI pipeline, check out one of these detailed tutorials:
 

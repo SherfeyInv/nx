@@ -7,10 +7,9 @@ import { PluginConfiguration } from '../../../config/nx-json';
 // TODO (@AgentEnder): After scoped verbose logging is implemented, re-add verbose logs here.
 // import { logger } from '../../utils/logger';
 
-import { LoadedNxPlugin, nxPluginCache } from '../internal-api';
+import { LoadedNxPlugin } from '../internal-api';
 import { getPluginOsSocketPath } from '../../../daemon/socket-utils';
 import { consumeMessagesFromSocket } from '../../../utils/consume-messages-from-socket';
-import { signalToCode } from '../../../utils/exit-codes';
 
 import {
   consumeMessage,
@@ -61,7 +60,6 @@ export async function loadRemoteNxPlugin(
 
   const cleanupFunction = () => {
     worker.off('exit', exitHandler);
-    shutdownPluginWorker(socket);
     socket.destroy();
     nxPluginWorkerCache.delete(cacheKey);
   };
@@ -106,10 +104,6 @@ export async function loadRemoteNxPlugin(
   nxPluginWorkerCache.set(cacheKey, pluginPromise);
 
   return [pluginPromise, cleanupFunction];
-}
-
-function shutdownPluginWorker(socket: Socket) {
-  sendMessageOverSocket(socket, { type: 'shutdown', payload: {} });
 }
 
 /**
@@ -190,26 +184,6 @@ function createWorkerHandler(
                   );
                 }
               : undefined,
-            processProjectGraph: result.hasProcessProjectGraph
-              ? (graph, ctx) => {
-                  const tx =
-                    pluginName + worker.pid + ':processProjectGraph:' + txId++;
-                  return registerPendingPromise(
-                    tx,
-                    pending,
-                    () => {
-                      sendMessageOverSocket(socket, {
-                        type: 'processProjectGraph',
-                        payload: { graph, ctx, tx },
-                      });
-                    },
-                    {
-                      operation: 'processProjectGraph',
-                      plugin: pluginName,
-                    }
-                  );
-                }
-              : undefined,
             createMetadata: result.hasCreateMetadata
               ? (graph, ctx) => {
                   const tx =
@@ -251,14 +225,6 @@ function createWorkerHandler(
           rejector(result.error);
         }
       },
-      processProjectGraphResult: ({ tx, ...result }) => {
-        const { resolver, rejector } = pending.get(tx);
-        if (result.success) {
-          resolver(result.graph);
-        } else if (result.success === false) {
-          rejector(result.error);
-        }
-      },
       createMetadataResult: ({ tx, ...result }) => {
         const { resolver, rejector } = pending.get(tx);
         if (result.success) {
@@ -287,22 +253,6 @@ function createWorkerExitHandler(
     }
   };
 }
-
-let cleanedUp = false;
-const exitHandler = () => {
-  nxPluginCache.clear();
-  for (const fn of cleanupFunctions) {
-    fn();
-  }
-  cleanedUp = true;
-};
-
-process.on('exit', exitHandler);
-process.on('SIGINT', () => {
-  exitHandler();
-  process.exit(signalToCode('SIGINT'));
-});
-process.on('SIGTERM', exitHandler);
 
 function registerPendingPromise(
   tx: string,

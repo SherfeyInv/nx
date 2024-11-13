@@ -1,13 +1,13 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`app generated files content - as-provided - my-app general application should add nuxt entries in .gitignore 1`] = `
-"
-# Nuxt dev/build outputs
+"# Nuxt dev/build outputs
 .output
 .data
 .nuxt
 .nitro
-.cache"
+.cache
+vite.config.*.timestamp*"
 `;
 
 exports[`app generated files content - as-provided - my-app general application should add the nuxt and vitest plugins 1`] = `
@@ -53,10 +53,14 @@ module.exports = [
   {
     files: ['**/*.vue'],
     languageOptions: {
-      parserOptions: { parser: require('@typescript-eslint/parser') },
+      parserOptions: {
+        parser: require('@typescript-eslint/parser'),
+      },
     },
   },
-  { ignores: ['.nuxt/**', '.output/**', 'node_modules'] },
+  {
+    ignores: ['.nuxt/**', '.output/**', 'node_modules'],
+  },
 ];
 "
 `;
@@ -83,7 +87,6 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -131,20 +134,16 @@ import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 export default defineConfig({
   root: __dirname,
   cacheDir: '../node_modules/.vite/my-app',
-
   plugins: [vue(), nxViteTsPaths(), nxCopyAssetsPlugin(['*.md'])],
-
   // Uncomment this if you are using workers.
   // worker: {
   //  plugins: [ nxViteTsPaths() ],
   // },
-
   test: {
     watch: false,
     globals: true,
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-
     reporters: ['default'],
     coverage: {
       reportsDirectory: '../coverage/my-app',
@@ -172,7 +171,9 @@ exports[`app generated files content - as-provided - my-app general application 
   "include": [
     ".nuxt/nuxt.d.ts",
     "vite.config.ts",
+    "vite.config.mts",
     "vitest.config.ts",
+    "vitest.config.mts",
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
     "src/**/*.test.tsx",
@@ -263,9 +264,7 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   css: ['~/assets/css/styles.css'],
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -295,9 +294,7 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   css: ['~/assets/css/styles.less'],
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -327,9 +324,7 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   css: ['~/assets/css/styles.scss'],
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -359,7 +354,6 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -368,13 +362,13 @@ export default defineNuxtConfig({
 `;
 
 exports[`app generated files content - as-provided - myApp general application should add nuxt entries in .gitignore 1`] = `
-"
-# Nuxt dev/build outputs
+"# Nuxt dev/build outputs
 .output
 .data
 .nuxt
 .nitro
-.cache"
+.cache
+vite.config.*.timestamp*"
 `;
 
 exports[`app generated files content - as-provided - myApp general application should add the nuxt and vitest plugins 1`] = `
@@ -420,10 +414,14 @@ module.exports = [
   {
     files: ['**/*.vue'],
     languageOptions: {
-      parserOptions: { parser: require('@typescript-eslint/parser') },
+      parserOptions: {
+        parser: require('@typescript-eslint/parser'),
+      },
     },
   },
-  { ignores: ['.nuxt/**', '.output/**', 'node_modules'] },
+  {
+    ignores: ['.nuxt/**', '.output/**', 'node_modules'],
+  },
 ];
 "
 `;
@@ -450,7 +448,6 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -498,20 +495,16 @@ import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 export default defineConfig({
   root: __dirname,
   cacheDir: '../node_modules/.vite/myApp',
-
   plugins: [vue(), nxViteTsPaths(), nxCopyAssetsPlugin(['*.md'])],
-
   // Uncomment this if you are using workers.
   // worker: {
   //  plugins: [ nxViteTsPaths() ],
   // },
-
   test: {
     watch: false,
     globals: true,
     environment: 'jsdom',
     include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-
     reporters: ['default'],
     coverage: {
       reportsDirectory: '../coverage/myApp',
@@ -539,7 +532,9 @@ exports[`app generated files content - as-provided - myApp general application s
   "include": [
     ".nuxt/nuxt.d.ts",
     "vite.config.ts",
+    "vite.config.mts",
     "vitest.config.ts",
+    "vitest.config.mts",
     "src/**/*.test.ts",
     "src/**/*.spec.ts",
     "src/**/*.test.tsx",
@@ -630,9 +625,7 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   css: ['~/assets/css/styles.css'],
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -662,9 +655,7 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   css: ['~/assets/css/styles.less'],
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -694,9 +685,7 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   css: ['~/assets/css/styles.scss'],
-
   vite: {
     plugins: [nxViteTsPaths()],
   },
@@ -726,7 +715,6 @@ export default defineNuxtConfig({
   imports: {
     autoImport: true,
   },
-
   vite: {
     plugins: [nxViteTsPaths()],
   },

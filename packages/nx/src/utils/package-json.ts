@@ -42,6 +42,8 @@ export interface PackageJson {
   type?: 'module' | 'commonjs';
   main?: string;
   types?: string;
+  // interchangeable with `types`: https://www.typescriptlang.org/docs/handbook/declaration-files/publishing.html#including-declarations-in-your-npm-package
+  typings?: string;
   module?: string;
   exports?:
     | string
@@ -66,6 +68,7 @@ export interface PackageJson {
         packages: string[];
       };
   publishConfig?: Record<string, string>;
+  files?: string[];
 
   // Nx Project Configuration
   nx?: NxProjectPackageJsonConfiguration;

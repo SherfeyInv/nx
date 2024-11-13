@@ -85,8 +85,7 @@ jest.mock('@nx/devkit', () => {
   };
 });
 
-// TODO(colum): turn these on when rspack is moved into the main repo
-xdescribe('hostGenerator', () => {
+describe('hostGenerator', () => {
   let tree: Tree;
 
   // TODO(@jaysoo): Turn this back to adding the plugin
@@ -108,12 +107,11 @@ xdescribe('hostGenerator', () => {
   describe('bundler=rspack', () => {
     it('should generate host files and configs when --js=true', async () => {
       await hostGenerator(tree, {
-        name: 'test',
+        directory: 'test',
         style: 'css',
         linter: Linter.None,
         unitTestRunner: 'none',
         e2eTestRunner: 'none',
-        projectNameAndRootFormat: 'as-provided',
         typescriptConfiguration: false,
         skipFormat: true,
         js: true,
@@ -122,19 +120,18 @@ xdescribe('hostGenerator', () => {
 
       expect(tree.exists('test/tsconfig.json')).toBeTruthy();
 
-      expect(tree.exists('test/src/bootstrap.js')).toBeTruthy();
-      expect(tree.exists('test/src/main.js')).toBeTruthy();
-      expect(tree.exists('test/src/app/app.js')).toBeTruthy();
+      expect(tree.exists('test/src/bootstrap.jsx')).toBeTruthy();
+      expect(tree.exists('test/src/main.jsx')).toBeTruthy();
+      expect(tree.exists('test/src/app/app.jsx')).toBeTruthy();
     });
 
     it('should generate host files and configs when --js=false', async () => {
       await hostGenerator(tree, {
-        name: 'test',
+        directory: 'test',
         style: 'css',
         linter: Linter.None,
         unitTestRunner: 'none',
         e2eTestRunner: 'none',
-        projectNameAndRootFormat: 'as-provided',
         typescriptConfiguration: false,
         bundler: 'rspack',
       });
@@ -148,12 +145,11 @@ xdescribe('hostGenerator', () => {
 
     it('should generate host files and configs when --typescriptConfiguration=true', async () => {
       await hostGenerator(tree, {
-        name: 'test',
+        directory: 'test',
         style: 'css',
         linter: Linter.None,
         unitTestRunner: 'none',
         e2eTestRunner: 'none',
-        projectNameAndRootFormat: 'as-provided',
         typescriptConfiguration: true,
         skipFormat: true,
         bundler: 'rspack',
@@ -174,12 +170,11 @@ xdescribe('hostGenerator', () => {
 
     it('should generate host files and configs when --typescriptConfiguration=false', async () => {
       await hostGenerator(tree, {
-        name: 'test',
+        directory: 'test',
         style: 'css',
         linter: Linter.None,
         unitTestRunner: 'none',
         e2eTestRunner: 'none',
-        projectNameAndRootFormat: 'as-provided',
         typescriptConfiguration: false,
         bundler: 'rspack',
       });
@@ -200,29 +195,28 @@ xdescribe('hostGenerator', () => {
     it('should install @nx/web for the file-server executor', async () => {
       const tree = createTreeWithEmptyWorkspace();
       await hostGenerator(tree, {
-        name: 'test',
+        directory: 'test',
         style: 'css',
         linter: Linter.None,
         unitTestRunner: 'none',
         e2eTestRunner: 'none',
-        projectNameAndRootFormat: 'as-provided',
         skipFormat: true,
         bundler: 'rspack',
       });
 
       const packageJson = readJson(tree, 'package.json');
+      console.log(packageJson);
       expect(packageJson.devDependencies['@nx/web']).toBeDefined();
     });
 
     it('should generate host files and configs for SSR', async () => {
       await hostGenerator(tree, {
-        name: 'test',
+        directory: 'test',
         ssr: true,
         style: 'css',
         linter: Linter.None,
         unitTestRunner: 'none',
         e2eTestRunner: 'none',
-        projectNameAndRootFormat: 'as-provided',
         typescriptConfiguration: false,
         bundler: 'rspack',
       });
@@ -263,13 +257,12 @@ xdescribe('hostGenerator', () => {
 
     it('should generate host files and configs for SSR when --typescriptConfiguration=true', async () => {
       await hostGenerator(tree, {
-        name: 'test',
+        directory: 'test',
         ssr: true,
         style: 'css',
         linter: Linter.None,
         unitTestRunner: 'none',
         e2eTestRunner: 'none',
-        projectNameAndRootFormat: 'as-provided',
         typescriptConfiguration: true,
         bundler: 'rspack',
       });
@@ -308,14 +301,12 @@ xdescribe('hostGenerator', () => {
       ).toMatchSnapshot();
     });
 
-    it('should generate a host and remotes in a directory correctly when using --projectNameAndRootFormat=as-provided', async () => {
+    it('should generate a host and remotes in a directory correctly', async () => {
       const tree = createTreeWithEmptyWorkspace();
 
       await hostGenerator(tree, {
-        name: 'host-app',
         directory: 'foo/host-app',
         remotes: ['remote1', 'remote2', 'remote3'],
-        projectNameAndRootFormat: 'as-provided',
         e2eTestRunner: 'none',
         linter: Linter.None,
         style: 'css',
@@ -332,14 +323,12 @@ xdescribe('hostGenerator', () => {
       ).toContain(`'remote1', 'remote2', 'remote3'`);
     });
 
-    it('should generate a host and remotes in a directory correctly when using --projectNameAndRootFormat=as-provided and --typescriptConfiguration=true', async () => {
+    it('should generate a host and remotes in a directory correctly when using --typescriptConfiguration=true', async () => {
       const tree = createTreeWithEmptyWorkspace();
 
       await hostGenerator(tree, {
-        name: 'host-app',
         directory: 'foo/host-app',
         remotes: ['remote1', 'remote2', 'remote3'],
-        projectNameAndRootFormat: 'as-provided',
         e2eTestRunner: 'none',
         linter: Linter.None,
         style: 'css',
@@ -362,10 +351,9 @@ xdescribe('hostGenerator', () => {
 
       await expect(
         hostGenerator(tree, {
-          name: 'myhostapp',
+          directory: 'myhostapp',
           remotes: [remote],
           dynamic: true,
-          projectNameAndRootFormat: 'as-provided',
           e2eTestRunner: 'none',
           linter: Linter.None,
           style: 'css',
@@ -374,6 +362,68 @@ xdescribe('hostGenerator', () => {
           bundler: 'rspack',
         })
       ).rejects.toThrowError(`Invalid remote name provided: ${remote}.`);
+    });
+
+    it('should generate create files with dynamic host', async () => {
+      const tree = createTreeWithEmptyWorkspace();
+      const remote = 'remote1';
+
+      await hostGenerator(tree, {
+        directory: 'myhostapp',
+        remotes: [remote],
+        dynamic: true,
+        e2eTestRunner: 'none',
+        linter: Linter.None,
+        style: 'css',
+        unitTestRunner: 'none',
+        typescriptConfiguration: false,
+        bundler: 'rspack',
+      });
+
+      expect(tree.read('myhostapp/src/main.ts', 'utf-8'))
+        .toMatchInlineSnapshot(`
+        "import { init } from '@module-federation/enhanced/runtime';
+
+        fetch('/assets/module-federation.manifest.json')
+          .then((res) => res.json())
+          .then((remotes: Record<string, string>) =>
+            Object.entries(remotes).map(([name, entry]) => ({ name, entry }))
+          )
+          .then((remotes) => init({ name: 'myhostapp', remotes }))
+          .then(() => import('./bootstrap').catch((err) => console.error(err)));
+        "
+      `);
+      expect(tree.read('myhostapp/src/app/app.tsx', 'utf-8'))
+        .toMatchInlineSnapshot(`
+        "import * as React from 'react';
+        import NxWelcome from './nx-welcome';
+        import { Link, Route, Routes } from 'react-router-dom';
+        import { loadRemote } from '@module-federation/enhanced/runtime';
+
+        const Remote1 = React.lazy(() => loadRemote('remote1/Module') as any);
+
+        export function App() {
+          return (
+            <React.Suspense fallback={null}>
+              <ul>
+                <li>
+                  <Link to="/">Home</Link>
+                </li>
+                <li>
+                  <Link to="/remote1">Remote1</Link>
+                </li>
+              </ul>
+              <Routes>
+                <Route path="/" element={<NxWelcome title="myhostapp" />} />
+                <Route path="/remote1" element={<Remote1 />} />
+              </Routes>
+            </React.Suspense>
+          );
+        }
+
+        export default App;
+        "
+      `);
     });
   });
 });

@@ -20,14 +20,15 @@ export class TasksSchedule {
   private notScheduledTaskGraph = this.taskGraph;
   private reverseTaskDeps = calculateReverseDeps(this.taskGraph);
   private reverseProjectGraph = reverse(this.projectGraph);
-  private taskHistory: TaskHistory = getTaskHistory();
+  private taskHistory: TaskHistory | null = getTaskHistory();
 
   private scheduledBatches: Batch[] = [];
   private scheduledTasks: string[] = [];
   private runningTasks = new Set<string>();
   private completedTasks = new Set<string>();
   private scheduleRequestsExecutionChain = Promise.resolve();
-  private estimatedTaskTimings: Record<string, number>;
+  private estimatedTaskTimings: Record<string, number> = {};
+  private projectDependencies: Record<string, number> = {};
 
   constructor(
     private readonly projectGraph: ProjectGraph,
@@ -36,9 +37,21 @@ export class TasksSchedule {
   ) {}
 
   public async init() {
-    this.estimatedTaskTimings = await this.taskHistory.getEstimatedTaskTimings(
-      Object.values(this.taskGraph.tasks).map((t) => t.target)
-    );
+    if (this.taskHistory) {
+      this.estimatedTaskTimings =
+        await this.taskHistory.getEstimatedTaskTimings(
+          Object.values(this.taskGraph.tasks).map((t) => t.target)
+        );
+    }
+
+    for (const project of Object.values(this.taskGraph.tasks).map(
+      (t) => t.target.project
+    )) {
+      this.projectDependencies[project] ??= findAllProjectNodeDependencies(
+        project,
+        this.reverseProjectGraph
+      ).length;
+    }
   }
 
   public async scheduleNextTasks() {
@@ -122,14 +135,8 @@ export class TasksSchedule {
         const project1 = this.taskGraph.tasks[taskId1].target.project;
         const project2 = this.taskGraph.tasks[taskId2].target.project;
 
-        const project1NodeDependencies = findAllProjectNodeDependencies(
-          project1,
-          this.reverseProjectGraph
-        ).length;
-        const project2NodeDependencies = findAllProjectNodeDependencies(
-          project2,
-          this.reverseProjectGraph
-        ).length;
+        const project1NodeDependencies = this.projectDependencies[project1];
+        const project2NodeDependencies = this.projectDependencies[project2];
 
         const dependenciesDiff =
           project2NodeDependencies - project1NodeDependencies;

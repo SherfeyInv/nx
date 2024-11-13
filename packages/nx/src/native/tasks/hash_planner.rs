@@ -71,11 +71,14 @@ impl HashPlanner {
                 let mut inputs: Vec<HashInstruction> = target
                     .unwrap_or(vec![])
                     .into_iter()
-                    .chain(vec![HashInstruction::WorkspaceFileSet(vec![
-                        "{workspaceRoot}/nx.json".to_string(),
-                        "{workspaceRoot}/.gitignore".to_string(),
-                        "{workspaceRoot}/.nxignore".to_string(),
-                    ])])
+                    .chain(vec![
+                        HashInstruction::Environment("NX_CLOUD_ENCRYPTION_KEY".into()),
+                        HashInstruction::WorkspaceFileSet(vec![
+                            "{workspaceRoot}/nx.json".to_string(),
+                            "{workspaceRoot}/.gitignore".to_string(),
+                            "{workspaceRoot}/.nxignore".to_string(),
+                        ]),
+                    ])
                     .chain(self_inputs)
                     .collect();
 
@@ -160,9 +163,11 @@ impl HashPlanner {
             ))
         } else {
             let mut external_deps: Vec<&'a String> = vec![];
+            let mut has_external_deps = false;
             for input in self_inputs {
                 match input {
                     Input::ExternalDependency(deps) => {
+                        has_external_deps = true;
                         for dep in deps.iter() {
                             let external_node_name =
                                 find_external_dependency_node_name(dep, &self.project_graph);
@@ -200,8 +205,10 @@ impl HashPlanner {
                         .map(|s| HashInstruction::External(s.to_string()))
                         .collect(),
                 ))
-            } else {
+            } else if !has_external_deps {
                 Ok(Some(vec![HashInstruction::AllExternalDependencies]))
+            } else {
+                Ok(None)
             }
         }
     }

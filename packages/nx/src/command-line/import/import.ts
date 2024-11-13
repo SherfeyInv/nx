@@ -59,7 +59,15 @@ export interface ImportOptions {
 }
 
 export async function importHandler(options: ImportOptions) {
+  process.env.NX_RUNNING_NX_IMPORT = 'true';
   let { sourceRepository, ref, source, destination } = options;
+  const destinationGitClient = new GitRepository(process.cwd());
+
+  if (await destinationGitClient.hasUncommittedChanges()) {
+    throw new Error(
+      `You have uncommitted changes in the destination repository. Commit or revert the changes and try again.`
+    );
+  }
 
   output.log({
     title:
@@ -186,7 +194,6 @@ export async function importHandler(options: ImportOptions) {
 
   const absDestination = join(process.cwd(), destination);
 
-  const destinationGitClient = new GitRepository(process.cwd());
   await assertDestinationEmpty(destinationGitClient, absDestination);
 
   const tempImportBranch = getTempImportBranch(ref);
@@ -259,7 +266,8 @@ export async function importHandler(options: ImportOptions) {
 
   const { plugins, updatePackageScripts } = await detectPlugins(
     nxJson,
-    options.interactive
+    options.interactive,
+    true
   );
 
   if (packageManager !== sourcePackageManager) {
@@ -348,8 +356,9 @@ export async function importHandler(options: ImportOptions) {
     title: `Merging these changes into ${getBaseRef(nxJson)}`,
     bodyLines: [
       `MERGE these changes when merging these changes.`,
-      `Do NOT squash and do NOT rebase these changes when merging these changes.`,
-      `If you would like to UNDO these changes, run "git reset HEAD~1 --hard"`,
+      `Do NOT squash these commits when merging these changes.`,
+      `If you rebase, make sure to use "--rebase-merges" to preserve merge commits.`,
+      `To UNDO these changes, run "git reset HEAD~1 --hard"`,
     ],
   });
 }

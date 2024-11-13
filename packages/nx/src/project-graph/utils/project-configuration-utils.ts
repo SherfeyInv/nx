@@ -252,7 +252,7 @@ export function mergeMetadata<T = ProjectMetadata | TargetMetadata>(
             }
           }
         } else {
-          result[metadataKey] = value;
+          result[metadataKey][key] = value[key];
           if (sourceMap) {
             sourceMap[`${baseSourceMapPath}.${metadataKey}`] =
               sourceInformation;
@@ -372,8 +372,10 @@ export async function createProjectConfigurations(
         } else {
           errorBodyLines.push(`  - ${e.message}`);
         }
-        const innerStackTrace = '    ' + e.stack.split('\n').join('\n    ');
-        errorBodyLines.push(innerStackTrace);
+        if (e.stack) {
+          const innerStackTrace = '    ' + e.stack.split('\n')?.join('\n    ');
+          errorBodyLines.push(innerStackTrace);
+        }
       }
 
       error.stack = errorBodyLines.join('\n');

@@ -34,9 +34,11 @@ describe('@nx/vite/plugin', () => {
         packages: ['@nx/react', '@nx/vue'],
       });
       runCLI(
-        `generate @nx/react:app ${myApp} --bundler=vite --unitTestRunner=vitest`
+        `generate @nx/react:app ${myApp} --directory=apps/${myApp} --bundler=vite --unitTestRunner=vitest`
       );
-      runCLI(`generate @nx/vue:app ${myVueApp} --unitTestRunner=vitest`);
+      runCLI(
+        `generate @nx/vue:app ${myVueApp} --directory=apps/${myVueApp} --unitTestRunner=vitest`
+      );
     });
 
     afterAll(() => {
@@ -66,12 +68,12 @@ describe('@nx/vite/plugin', () => {
       it('should build the library and application successfully', () => {
         const myApp = uniq('myapp');
         runCLI(
-          `generate @nx/react:app ${myApp} --bundler=vite --unitTestRunner=vitest`
+          `generate @nx/react:app ${myApp} --directory=apps/${myApp} --bundler=vite --unitTestRunner=vitest`
         );
 
         const myBuildableLib = uniq('mybuildablelib');
         runCLI(
-          `generate @nx/react:library ${myBuildableLib} --bundler=vite --unitTestRunner=vitest --buildable`
+          `generate @nx/react:library ${myBuildableLib} --directory=libs/${myBuildableLib} --bundler=vite --unitTestRunner=vitest --buildable`
         );
 
         const exportedLibraryComponent = names(myBuildableLib).className;
@@ -153,7 +155,7 @@ describe('@nx/vite/plugin', () => {
     it('should support importing .js and .css files in tsconfig path', () => {
       const mylib = uniq('mylib');
       runCLI(
-        `generate @nx/react:library ${mylib} --bundler=none --unitTestRunner=vitest --directory=libs/${mylib} --project-name-and-root-format=as-provided`
+        `generate @nx/react:library libs/${mylib} --bundler=none --unitTestRunner=vitest`
       );
       updateFile(`libs/${mylib}/src/styles.css`, `.foo {}`);
       updateFile(`libs/${mylib}/src/foo.mts`, `export const foo = 'foo';`);
@@ -175,6 +177,35 @@ describe('@nx/vite/plugin', () => {
 
       expect(() => runCLI(`test ${mylib}`)).not.toThrow();
     });
+
+    it('should support importing files with "." in the name in tsconfig path', () => {
+      const mylib = uniq('mylib');
+      runCLI(
+        `generate @nx/react:library libs/${mylib} --bundler=none --unitTestRunner=vitest`
+      );
+      updateFile(`libs/${mylib}/src/styles.module.css`, `.foo {}`);
+      updateFile(`libs/${mylib}/src/foo.enum.ts`, `export const foo = 'foo';`);
+      updateFile(`libs/${mylib}/src/bar.enum.ts`, `export const bar = 'bar';`);
+      updateFile(
+        `libs/${mylib}/src/foo.spec.ts`,
+        `
+          import styles from '~/styles.module.css';
+          import { foo } from '~/foo.enum.ts';
+          import { bar } from '~/bar.enum';
+          test('should work', () => {
+            expect(styles).toBeDefined();
+            expect(foo).toBeDefined();
+            expect(bar).toBeDefined();
+          });
+        `
+      );
+      updateJson('tsconfig.base.json', (json) => {
+        json.compilerOptions.paths['~/*'] = [`libs/${mylib}/src/*`];
+        return json;
+      });
+
+      expect(() => runCLI(`test ${mylib}`)).not.toThrow();
+    });
   });
 
   describe('react with vitest only', () => {
@@ -185,7 +216,7 @@ describe('@nx/vite/plugin', () => {
         packages: ['@nx/vite', '@nx/react'],
       });
       runCLI(
-        `generate @nx/react:app ${reactVitest} --bundler=webpack --unitTestRunner=vitest --e2eTestRunner=none --projectNameAndRootFormat=as-provided`
+        `generate @nx/react:app ${reactVitest} --bundler=webpack --unitTestRunner=vitest --e2eTestRunner=none`
       );
     });
 

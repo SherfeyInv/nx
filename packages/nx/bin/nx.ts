@@ -20,6 +20,7 @@ import { assertSupportedPlatform } from '../src/native/assert-supported-platform
 import { performance } from 'perf_hooks';
 import { setupWorkspaceContext } from '../src/utils/workspace-context';
 import { daemonClient } from '../src/daemon/client/client';
+import { removeDbConnections } from '../src/utils/db-connection';
 
 function main() {
   if (
@@ -167,18 +168,9 @@ function resolveNx(workspace: WorkspaceTypeAndRoot | null) {
   } catch {}
 
   // check for root install
-  try {
-    return require.resolve('nx/bin/nx.js', {
-      paths: [workspace ? workspace.dir : globalsRoot],
-    });
-  } catch {
-    // TODO(v17): Remove this
-    // fallback for old CLI install setup
-    // nx-ignore-next-line
-    return require.resolve('@nrwl/cli/bin/nx.js', {
-      paths: [workspace ? workspace.dir : globalsRoot],
-    });
-  }
+  return require.resolve('nx/bin/nx.js', {
+    paths: [workspace ? workspace.dir : globalsRoot],
+  });
 }
 
 function handleMissingLocalInstallation() {
@@ -260,10 +252,18 @@ function getLocalNxVersion(workspace: WorkspaceTypeAndRoot): string | null {
 
 function _getLatestVersionOfNx(): string {
   try {
-    return execSync('npm view nx@latest version').toString().trim();
+    return execSync('npm view nx@latest version', {
+      windowsHide: false,
+    })
+      .toString()
+      .trim();
   } catch {
     try {
-      return execSync('pnpm view nx@latest version').toString().trim();
+      return execSync('pnpm view nx@latest version', {
+        windowsHide: false,
+      })
+        .toString()
+        .trim();
     } catch {
       return null;
     }
@@ -274,5 +274,13 @@ const getLatestVersionOfNx = ((fn: () => string) => {
   let cache: string = null;
   return () => cache || (cache = fn());
 })(_getLatestVersionOfNx);
+
+function nxCleanup() {
+  removeDbConnections();
+}
+process.on('exit', nxCleanup);
+process.on('SIGINT', nxCleanup);
+process.on('SIGTERM', nxCleanup);
+process.on('SIGHUP', nxCleanup);
 
 main();

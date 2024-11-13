@@ -18,6 +18,7 @@ export interface TargetConfigurationGroupListProps {
   }) => void;
   onNxConnect?: () => void;
   connectedToCloud?: boolean;
+  disabledTaskSyncGenerators?: string[];
   className?: string;
 }
 
@@ -30,6 +31,7 @@ export function TargetConfigurationGroupList({
   onNxConnect,
   className = '',
   connectedToCloud,
+  disabledTaskSyncGenerators,
 }: TargetConfigurationGroupListProps) {
   const targetsGroup = useMemo(() => groupTargets(project), [project]);
   const hasGroups = useMemo(() => {
@@ -56,6 +58,7 @@ export function TargetConfigurationGroupList({
                       project={project}
                       sourceMap={sourceMap}
                       connectedToCloud={connectedToCloud}
+                      disabledTaskSyncGenerators={disabledTaskSyncGenerators}
                       variant={variant}
                       onRunTarget={onRunTarget}
                       onViewInTaskGraph={onViewInTaskGraph}
@@ -82,6 +85,7 @@ export function TargetConfigurationGroupList({
                   project={project}
                   sourceMap={sourceMap}
                   connectedToCloud={connectedToCloud}
+                  disabledTaskSyncGenerators={disabledTaskSyncGenerators}
                   variant={variant}
                   onRunTarget={onRunTarget}
                   onViewInTaskGraph={onViewInTaskGraph}
@@ -96,7 +100,7 @@ export function TargetConfigurationGroupList({
         </TargetConfigurationGroupContainer>
       </>
     );
-  } else {
+  } else if (targetsGroup.targets.length > 0) {
     return (
       <ul className={className}>
         {targetsGroup.targets.map((targetName) => {
@@ -105,6 +109,7 @@ export function TargetConfigurationGroupList({
               project={project}
               sourceMap={sourceMap}
               connectedToCloud={connectedToCloud}
+              disabledTaskSyncGenerators={disabledTaskSyncGenerators}
               variant={variant}
               onRunTarget={onRunTarget}
               onViewInTaskGraph={onViewInTaskGraph}
@@ -116,6 +121,41 @@ export function TargetConfigurationGroupList({
           );
         })}
       </ul>
+    );
+  } else {
+    return (
+      <div className="pt-4">
+        <p className="mb-2">No targets configured.</p>
+        <p>
+          There are two ways to create targets:
+          <ul className="ml-6 mt-2 list-disc space-y-2">
+            <li>
+              <a
+                href="https://nx.dev/plugin-registry"
+                className="text-slate-500 hover:underline dark:text-slate-400"
+              >
+                Add an Nx plugin
+              </a>{' '}
+              that{' '}
+              <a
+                href="https://nx.dev/concepts/inferred-tasks"
+                className="text-slate-500 hover:underline dark:text-slate-400"
+              >
+                infers targets for you
+              </a>
+            </li>
+            <li>
+              Manually define targets in the{' '}
+              <a
+                href="https://nx.dev/reference/project-configuration#task-definitions-targets"
+                className="text-slate-500 hover:underline dark:text-slate-400"
+              >
+                project configuration targets property
+              </a>
+            </li>
+          </ul>
+        </p>
+      </div>
     );
   }
 }

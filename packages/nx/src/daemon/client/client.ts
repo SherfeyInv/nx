@@ -1,8 +1,13 @@
 import { workspaceRoot } from '../../utils/workspace-root';
 import { ChildProcess, spawn } from 'child_process';
-import { readFileSync, statSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { FileHandle, open } from 'fs/promises';
-import { ensureDirSync, ensureFileSync } from 'fs-extra';
 import { connect } from 'net';
 import { join } from 'path';
 import { performance } from 'perf_hooks';
@@ -118,10 +123,7 @@ export class DaemonClient {
 
   enabled() {
     if (this._enabled === undefined) {
-      // TODO(v19): Add migration to move it out of existing configs and remove the ?? here.
-      const useDaemonProcessOption =
-        this.nxJson?.useDaemonProcess ??
-        this.nxJson?.tasksRunnerOptions?.['default']?.options?.useDaemonProcess;
+      const useDaemonProcessOption = this.nxJson?.useDaemonProcess;
       const env = process.env.NX_DAEMON;
 
       // env takes precedence
@@ -398,7 +400,10 @@ export class DaemonClient {
     return this.sendToDaemonViaQueue(message);
   }
 
-  getRegisteredSyncGenerators(): Promise<string[]> {
+  getRegisteredSyncGenerators(): Promise<{
+    globalGenerators: string[];
+    taskGenerators: string[];
+  }> {
     const message: HandleGetRegisteredSyncGeneratorsMessage = {
       type: GET_REGISTERED_SYNC_GENERATORS,
     };
@@ -574,8 +579,10 @@ export class DaemonClient {
   }
 
   async startInBackground(): Promise<ChildProcess['pid']> {
-    ensureDirSync(DAEMON_DIR_FOR_CURRENT_WORKSPACE);
-    ensureFileSync(DAEMON_OUTPUT_LOG_FILE);
+    mkdirSync(DAEMON_DIR_FOR_CURRENT_WORKSPACE, { recursive: true });
+    if (!existsSync(DAEMON_OUTPUT_LOG_FILE)) {
+      writeFileSync(DAEMON_OUTPUT_LOG_FILE, '');
+    }
 
     this._out = await open(DAEMON_OUTPUT_LOG_FILE, 'a');
     this._err = await open(DAEMON_OUTPUT_LOG_FILE, 'a');
@@ -587,7 +594,7 @@ export class DaemonClient {
         cwd: workspaceRoot,
         stdio: ['ignore', this._out.fd, this._err.fd],
         detached: true,
-        windowsHide: true,
+        windowsHide: false,
         shell: false,
         env: {
           ...process.env,
@@ -629,7 +636,7 @@ export class DaemonClient {
       output.error({
         title:
           err?.message ||
-          'Something unexpected went wrong when stopping the server',
+          'Something unexpected went wrong when stopping the daemon server',
       });
     }
 

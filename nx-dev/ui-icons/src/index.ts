@@ -3,6 +3,7 @@ export * from './lib/ci-providers/azure-devops';
 export * from './lib/ci-providers/bitbucket';
 export * from './lib/ci-providers/github';
 export * from './lib/ci-providers/gitlab';
+export * from './lib/ci-providers/google-cloud';
 export * from './lib/ci-providers/jenkins';
 export * from './lib/ci-providers/travis-ci';
 
@@ -76,6 +77,9 @@ export * from './lib/editors/visual-studio-code';
 
 // OTHERS
 export * from './lib/monorepo-world';
+export * from './lib/others/amazon-s3';
+export * from './lib/others/linux';
+export * from './lib/others/windows';
 
 // PODCASTS
 export * from './lib/podcasts/amazon-music';

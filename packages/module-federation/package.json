@@ -31,8 +31,8 @@
     "picocolors": "^1.1.0",
     "webpack": "5.88.0",
     "@rspack/core": "^1.1.5",
-    "@module-federation/enhanced": "0.7.6",
-    "@module-federation/node": "2.6.11",
+    "@module-federation/enhanced": "0.12.0",
+    "@module-federation/node": "2.7.0",
     "@module-federation/sdk": "0.7.6",
     "express": "^4.19.2",
     "http-proxy-middleware": "^3.0.3"

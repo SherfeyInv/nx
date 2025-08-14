@@ -63,7 +63,7 @@
     "picomatch": "4.0.2",
     "semver": "^7.5.3",
     "tslib": "^2.3.0",
-    "webpack-merge": "^5.8.0"
+    "webpack-merge": "^6.0.1"
   },
   "peerDependencies": {
     "@angular/build": ">= 18.0.0 < 21.0.0",

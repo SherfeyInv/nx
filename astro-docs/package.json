@@ -14,7 +14,7 @@
     "@nx/nx-dev-ui-icons": "workspace:*",
     "@nx/nx-dev-ui-markdoc": "workspace:*",
     "@tailwindcss/vite": "^4.1.11",
-    "astro": "^5.10.1",
+    "astro": "^5.16.10",
     "tailwindcss": "4.1.11"
   }
 }

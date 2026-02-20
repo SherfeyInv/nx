@@ -47,7 +47,7 @@
     "@nx/rollup": "workspace:*",
     "express": "^4.21.2",
     "http-proxy-middleware": "^3.0.5",
-    "semver": "^7.6.3"
+    "semver": "^7.7.4"
   },
   "devDependencies": {
     "nx": "workspace:*"

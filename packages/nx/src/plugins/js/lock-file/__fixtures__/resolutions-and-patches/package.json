@@ -38,7 +38,7 @@
     "jwt-decode": "^3.1.2",
     "libphonenumber-js": "^1.10.39",
     "lodash": "^4.17.21",
-    "next": "14.2.3",
+    "next": "15.5.10",
     "next-redux-wrapper": "^8.1.0",
     "normalize.css": "^8.0.1",
     "object-hash": "^2.2.0",
@@ -65,7 +65,7 @@
     "redux": "^4.2.1",
     "rimraf": "6.0.1",
     "rxjs": "^7.8.1",
-    "semver": "7.5.3",
+    "semver": "7.7.4",
     "sockjs-client": "1.6.1",
     "style-dictionary": "^4.0.1",
     "style-dictionary-utils": "^3.1.1",
@@ -73,7 +73,7 @@
     "tslib": "^2.3.0",
     "tua-body-scroll-lock": "^1.2.1",
     "universal-cookie": "^4.0.4",
-    "url-parse": "1.5.3"
+    "url-parse": "1.5.9"
   },
   "devDependencies": {
     "@apollo/client": "^3.10.8",

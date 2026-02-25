@@ -33,7 +33,7 @@
     "@nx/devkit": "workspace:*",
     "@nx/js": "workspace:*",
     "@rsbuild/core": "1.1.8",
-    "minimatch": "9.0.3",
+    "minimatch": "9.0.6",
     "@phenomnomnominal/tsquery": "~5.0.1"
   },
   "devDependencies": {

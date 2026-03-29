@@ -39,7 +39,7 @@
     "@rollup/plugin-typescript": "^12.1.0",
     "autoprefixer": "^10.4.9",
     "picocolors": "^1.1.0",
-    "picomatch": "4.0.2",
+    "picomatch": "4.0.4",
     "postcss": "^8.4.38",
     "rollup": "^4.14.0",
     "rollup-plugin-copy": "^3.5.0",

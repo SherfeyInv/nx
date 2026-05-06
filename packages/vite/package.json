@@ -34,7 +34,7 @@
     "@phenomnomnominal/tsquery": "~5.0.1",
     "enquirer": "~2.3.6",
     "@nx/js": "workspace:*",
-    "picomatch": "4.0.2",
+    "picomatch": "4.0.4",
     "tsconfig-paths": "^4.1.2",
     "semver": "^7.6.3",
     "tslib": "^2.3.0",

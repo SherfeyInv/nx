@@ -29,7 +29,7 @@
     "migrations": "./migrations.json"
   },
   "dependencies": {
-    "picomatch": "^4.0.2",
+    "picomatch": "^4.0.4",
     "tslib": "^2.3.0",
     "@nx/devkit": "workspace:*",
     "@nx/js": "workspace:*",

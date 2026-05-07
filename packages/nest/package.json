@@ -59,7 +59,7 @@
     }
   },
   "dependencies": {
-    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/schematics": "^11.0.10",
     "@nx/devkit": "workspace:*",
     "@nx/js": "workspace:*",
     "@nx/eslint": "workspace:*",

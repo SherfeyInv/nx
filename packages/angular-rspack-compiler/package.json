@@ -37,7 +37,7 @@
     }
   },
   "dependencies": {
-    "@angular/build": "catalog:angular-supported-versions",
+    "@angular/build": "21.2.4",
     "sass-embedded": "^1.97.2",
     "semver": "catalog:",
     "ts-morph": "catalog:typescript",

@@ -1,7 +1,7 @@
-import 'nx/src/internal-testing-utils/mock-project-graph';
+import '@nx/devkit/internal-testing-utils/mock-project-graph';
 
-import { assertMinimumCypressVersion } from '@nx/cypress/src/utils/versions';
-import { Tree } from '@nx/devkit';
+import { assertMinimumCypressVersion } from '@nx/cypress/internal';
+import { Tree, updateJson } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
 import { UnitTestRunner } from '../../utils/test-runners';
 import { componentGenerator } from '../component/component';
@@ -9,7 +9,7 @@ import { generateTestLibrary } from '../utils/testing';
 import { componentTestGenerator } from './component-test';
 import { EOL } from 'node:os';
 
-jest.mock('@nx/cypress/src/utils/versions');
+jest.mock('@nx/cypress/internal');
 
 describe('Angular Cypress Component Test Generator', () => {
   let tree: Tree;
@@ -243,5 +243,28 @@ describe(MyLib.name, () => {
         .read('my-lib/src/lib/my-lib/my-lib.cy.ts', 'utf-8')
         .replaceAll(EOL, '\n')
     ).toEqual(expected);
+  });
+
+  it('should throw an error when the cypress version does not support the angular version', async () => {
+    await generateTestLibrary(tree, {
+      directory: 'my-lib',
+      unitTestRunner: UnitTestRunner.None,
+      linter: 'none',
+      skipFormat: true,
+    });
+    updateJson(tree, 'package.json', (json) => {
+      json.dependencies = { ...json.dependencies, cypress: '15.20.0' };
+      return json;
+    });
+
+    await expect(
+      componentTestGenerator(tree, {
+        componentName: 'MyLib',
+        componentFileName: './my-lib',
+        project: 'my-lib',
+        componentDir: 'src/lib/my-lib',
+        skipFormat: true,
+      })
+    ).rejects.toThrow(/requires Cypress 15\.20\.1 or higher/);
   });
 });

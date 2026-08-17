@@ -1,7 +1,7 @@
 import { TsconfigPathsPlugin } from 'tsconfig-paths-webpack-plugin';
 import { Configuration } from 'webpack';
 import { getCSSModuleLocalIdent } from '@nx/webpack';
-import { resolvePathsBaseUrl } from '@nx/js/src/utils/typescript/ts-config';
+import { resolvePathsBaseUrl } from '@nx/js';
 
 export function buildBaseWebpackConfig({
   tsConfigPath = 'tsconfig.cy.json',
@@ -86,6 +86,11 @@ const loaderModulesOptions = {
   modules: {
     mode: 'local',
     getLocalIdent: getCSSModuleLocalIdent,
+    // css-loader 7 defaults namedExport to true, and to camel-case-only
+    // locals when it is off. Generated components import the default
+    // export and reference class names as authored, so pin both.
+    namedExport: false,
+    exportLocalsConvention: 'asIs',
   },
   importLoaders: 1,
 };

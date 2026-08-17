@@ -1,5 +1,4 @@
-import { ExecutorContext, names } from '@nx/devkit';
-import { readJsonFile } from 'nx/src/utils/fileutils';
+import { ExecutorContext, names, readJsonFile } from '@nx/devkit';
 import { ChildProcess, fork } from 'child_process';
 
 import { ExpoInstallOptions } from './schema';
@@ -8,6 +7,7 @@ import {
   displayNewlyAddedDepsMessage,
   syncDeps,
 } from '../sync-deps/sync-deps.impl';
+import { warnExpoExecutorDeprecation } from '../../utils/deprecation';
 
 export interface ExpoInstallOutput {
   success: boolean;
@@ -19,6 +19,8 @@ export default async function* installExecutor(
   options: ExpoInstallOptions,
   context: ExecutorContext
 ): AsyncGenerator<ExpoInstallOutput> {
+  warnExpoExecutorDeprecation('install');
+
   try {
     await installAndUpdatePackageJson(context, options);
     yield {

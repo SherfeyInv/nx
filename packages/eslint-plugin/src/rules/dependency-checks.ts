@@ -1,6 +1,6 @@
 import { NX_VERSION, normalizePath, workspaceRoot } from '@nx/devkit';
 import { getCatalogManager } from '@nx/devkit/internal';
-import { findNpmDependencies } from '@nx/js/src/utils/find-npm-dependencies';
+import { findNpmDependencies } from '@nx/js/internal';
 import { ESLintUtils } from '@typescript-eslint/utils';
 import { AST } from 'jsonc-eslint-parser';
 import { type JSONLiteral } from 'jsonc-eslint-parser/lib/parser/ast';
@@ -170,13 +170,24 @@ export default ESLintUtils.RuleCreator(
     );
     const expectedDependencyNames = Object.keys(npmDependencies);
 
+    // Packages eligible for `workspace:*` rewrites under
+    // `peerDepsVersionStrategy: 'workspace'`. Must be both a workspace project
+    // and registered in the package manager's workspaces — otherwise
+    // `workspace:*` won't resolve at install time.
+    const workspacePackageNames = new Set<string>();
+    for (const node of Object.values(projectGraph.nodes)) {
+      const js = node.data?.metadata?.js;
+      if (js?.packageName && js.isInPackageManagerWorkspaces) {
+        workspacePackageNames.add(js.packageName);
+      }
+    }
+
     const packageJson = JSON.parse(context.sourceCode.getText());
     const projPackageJsonDeps = getProductionDependencies(packageJson);
 
     const rootPackageJsonDeps = getAllDependencies(rootPackageJson);
 
     const catalogManager = getCatalogManager(workspaceRoot);
-    const catalogDefs = catalogManager?.getCatalogDefinitions(workspaceRoot);
 
     function catalogEntryMatchesInstalled(
       catalogVersionSpec: string,
@@ -195,33 +206,11 @@ export default ESLintUtils.RuleCreator(
     }
 
     function getCatalogVersionForPackage(packageName: string): string | null {
-      if (!catalogDefs) {
-        return null;
-      }
-
-      const matches: { catalogRef: string; versionSpec: string }[] = [];
-
-      // Check default catalog — `catalog` takes precedence over `catalogs.default`.
-      // Both existing simultaneously is a pnpm error caught by validateCatalogReference.
-      const defaultEntry =
-        catalogDefs.catalog?.[packageName] ??
-        catalogDefs.catalogs?.default?.[packageName];
-      if (defaultEntry) {
-        matches.push({ catalogRef: 'catalog:', versionSpec: defaultEntry });
-      }
-
-      // Check named catalogs (skip "default" — handled above)
-      if (catalogDefs.catalogs) {
-        for (const [name, entries] of Object.entries(catalogDefs.catalogs)) {
-          if (name === 'default' || !entries?.[packageName]) {
-            continue;
-          }
-          matches.push({
-            catalogRef: `catalog:${name}`,
-            versionSpec: entries[packageName],
-          });
-        }
-      }
+      const matches =
+        catalogManager?.getCatalogReferencesForPackage(
+          workspaceRoot,
+          packageName
+        ) ?? [];
 
       if (!matches.length) {
         return null;
@@ -296,7 +285,8 @@ export default ESLintUtils.RuleCreator(
             missingDeps.forEach((d) => {
               if (
                 dependencySection === 'peerDependencies' &&
-                peerDepsVersionStrategy === 'workspace'
+                peerDepsVersionStrategy === 'workspace' &&
+                workspacePackageNames.has(d)
               ) {
                 projPackageJsonDeps[d] = WORKSPACE_VERSION_WILDCARD;
               } else {
@@ -368,7 +358,8 @@ export default ESLintUtils.RuleCreator(
       if (
         dependencySection === 'peerDependencies' &&
         peerDepsVersionStrategy === 'workspace' &&
-        !packageRange.startsWith('workspace:')
+        !packageRange.startsWith('workspace:') &&
+        workspacePackageNames.has(packageName)
       ) {
         context.report({
           node: node as any,

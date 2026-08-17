@@ -7,12 +7,13 @@ import {
   runTasksInSerial,
   Tree,
 } from '@nx/devkit';
+import { assertSupportedNextVersion } from '../../utils/assert-supported-next-version';
 import { initGenerator as jsInitGenerator } from '@nx/js';
 import {
   testingLibraryDomVersion,
   testingLibraryReactVersion,
-} from '@nx/react/src/utils/versions';
-import { getReactDependenciesVersionsToInstall } from '@nx/react/src/utils/version-utils';
+  getReactDependenciesVersionsToInstall,
+} from '@nx/react/internal';
 
 import { normalizeOptions } from './lib/normalize-options';
 import { Schema } from './schema';
@@ -31,8 +32,8 @@ import {
   addProjectToTsSolutionWorkspace,
   shouldConfigureTsSolutionSetup,
   updateTsconfigFiles,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
-import { sortPackageJsonFields } from '@nx/js/src/utils/package-json/sort-fields';
+  sortPackageJsonFields,
+} from '@nx/js/internal';
 import { configureForSwc } from '../../utils/add-swc-to-custom-server';
 import { updateJestConfig } from '../../utils/jest-config-util';
 import { isNext14, isNext15 } from '../../utils/version-utils';
@@ -46,6 +47,8 @@ export async function applicationGenerator(host: Tree, schema: Schema) {
 }
 
 export async function applicationGeneratorInternal(host: Tree, schema: Schema) {
+  assertSupportedNextVersion(host);
+
   const tasks: GeneratorCallback[] = [];
 
   const addTsPlugin = shouldConfigureTsSolutionSetup(
@@ -128,7 +131,9 @@ export async function applicationGeneratorInternal(host: Tree, schema: Schema) {
       addDependenciesToPackageJson(
         host,
         { tslib: tsLibVersion },
-        devDependencies
+        devDependencies,
+        undefined,
+        true
       )
     );
   }

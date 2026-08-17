@@ -1,4 +1,5 @@
 import { determineArtifactNameAndDirectoryOptions } from '@nx/devkit/internal';
+import { assertSupportedReactVersion } from '../../utils/assert-supported-react-version';
 import {
   addDependenciesToPackageJson,
   applyChangesToString,
@@ -11,11 +12,11 @@ import {
   Tree,
 } from '@nx/devkit';
 import { getRootTsConfigPathInTree } from '@nx/js';
-import { ensureTypescript } from '@nx/js/src/utils/typescript/ensure-typescript';
 import {
+  ensureTypescript,
   getProjectSourceRoot,
   getProjectType,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
+} from '@nx/js/internal';
 import * as path from 'path';
 import {
   addImport,
@@ -28,6 +29,8 @@ import { NormalizedSchema, Schema } from './schema';
 let tsModule: typeof import('typescript');
 
 export async function reduxGenerator(host: Tree, schema: Schema) {
+  assertSupportedReactVersion(host);
+
   const options = await normalizeOptions(host, schema);
   generateReduxFiles(host, options);
   addExportsToBarrel(host, options);
@@ -59,7 +62,9 @@ function addReduxPackageDependencies(host: Tree) {
       '@reduxjs/toolkit': reduxjsToolkitVersion,
       'react-redux': reactReduxVersion,
     },
-    {}
+    {},
+    undefined,
+    true
   );
 }
 

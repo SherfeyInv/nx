@@ -7,14 +7,14 @@ import {
   readJsonFile,
   writeJsonFile,
 } from '@nx/devkit';
-import { signalToCode } from '@nx/devkit/internal';
+import { signalToCode, type PackageJson } from '@nx/devkit/internal';
 import { getLockFileName } from '@nx/js';
 import { ChildProcess, fork } from 'child_process';
 import { copyFileSync, existsSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve as pathResolve } from 'path';
-import type { PackageJson } from 'nx/src/utils/package-json';
 
 import { resolveEas } from '../../utils/resolve-eas';
+import { warnExpoExecutorDeprecation } from '../../utils/deprecation';
 
 import { ExpoEasBuildOptions } from './schema';
 
@@ -28,6 +28,8 @@ export default async function* buildExecutor(
   options: ExpoEasBuildOptions,
   context: ExecutorContext
 ): AsyncGenerator<ReactNativeBuildOutput> {
+  warnExpoExecutorDeprecation('build');
+
   const projectRoot =
     context.projectsConfigurations.projects[context.projectName].root;
 

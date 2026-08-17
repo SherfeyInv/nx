@@ -1,5 +1,7 @@
-// Ensure that the preset loads from node_modules rather than our local typescript source
-const nxPreset = require('./node_modules/@nx/jest/preset').default;
+// Resolve via the @nx/jest exports map. A plain Node require (no --conditions)
+// skips the @nx/nx-source condition, so this lands on the built dist/preset.js
+// rather than the local TypeScript source.
+const nxPreset = require('@nx/jest/preset').default;
 const path = require('path');
 
 // SWC resolves bare plugin names by walking node_modules upward from cwd.
@@ -44,5 +46,7 @@ module.exports = {
     '^chalk$': '<rootDir>/../../scripts/jest-mocks/chalk.js',
     '^yargs-parser$': '<rootDir>/../../scripts/jest-mocks/yargs-parser.js',
     '^prettier$': '<rootDir>/../../scripts/jest-mocks/prettier.js',
+    // magic-string@1 is ESM-only and @angular-devkit/schematics@22.1 pulls it in
+    '^magic-string$': '<rootDir>/../../scripts/jest-mocks/magic-string.js',
   },
 };

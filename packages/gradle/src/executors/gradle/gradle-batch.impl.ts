@@ -5,8 +5,6 @@ import {
   TaskGraph,
   workspaceRoot,
 } from '@nx/devkit';
-import { RunCommandsOptions } from 'nx/src/executors/run-commands/run-commands.impl';
-import { TaskResult } from 'nx/src/config/misc-interfaces';
 import { GradleExecutorSchema } from './schema';
 import {
   findGradlewFile,
@@ -19,6 +17,7 @@ import {
   getAllDependsOnFromTaskGraph,
   getExcludeTasksFromTaskGraph,
 } from './get-exclude-task';
+import { RunCommandsOptions, TaskResult } from '@nx/devkit/internal';
 
 export const batchRunnerPath = join(
   __dirname,
@@ -94,18 +93,6 @@ export default async function* gradleBatch(
           result: { success: false, terminalOutput: e.toString() },
         };
       }
-    }
-    return;
-  }
-
-  // Any tasks the batch runner did not report on are treated as failed so Nx
-  // does not hang waiting for results.
-  for (const taskId of taskIds) {
-    if (!yielded.has(taskId)) {
-      yield {
-        task: taskId,
-        result: { success: false, terminalOutput: `Gradlew batch failed` },
-      };
     }
   }
 }
@@ -230,6 +217,7 @@ async function* streamTasksInBatch(
         task: data.task,
         result: {
           success: data.result.success ?? false,
+          status: data.result.status,
           terminalOutput: data.result.terminalOutput ?? '',
           startTime: data.result.startTime,
           endTime: data.result.endTime,

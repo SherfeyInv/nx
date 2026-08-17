@@ -4,7 +4,7 @@ import {
   runTasksInSerial,
   Tree,
 } from '@nx/devkit';
-import { addSwcDependencies } from '@nx/js/src/utils/swc/add-swc-dependencies';
+import { addSwcDependencies } from '@nx/js/internal';
 import { getReactDependenciesVersionsToInstall } from '../../../utils/version-utils';
 import {
   babelCoreVersion,
@@ -53,7 +53,9 @@ export async function installCommonDependencies(
   const baseInstallTask = addDependenciesToPackageJson(
     host,
     dependencies,
-    devDependencies
+    devDependencies,
+    undefined,
+    true
   );
   tasks.push(baseInstallTask);
 
@@ -67,7 +69,9 @@ export async function installCommonDependencies(
         {
           '@babel/preset-react': babelPresetReactVersion,
           '@babel/core': babelCoreVersion,
-        }
+        },
+        undefined,
+        true
       )
     );
   }

@@ -144,16 +144,12 @@ export function buildEsbuildOptions(
 export function createPathsFromTsConfigReferences(
   context: ExecutorContext
 ): Record<string, string[]> {
-  const {
-    findAllProjectNodeDependencies,
-  } = require('nx/src/utils/project-graph-utils');
+  const { findAllProjectNodeDependencies } = require('@nx/devkit/internal');
   const {
     isValidPackageJsonBuildConfig,
-  } = require('@nx/js/src/plugins/typescript/util');
-  const { readTsConfig } = require('@nx/js');
-  const {
     findRuntimeTsConfigName,
-  } = require('@nx/js/src/utils/typescript/ts-solution-setup');
+  } = require('@nx/js/internal');
+  const { readTsConfig } = require('@nx/js');
 
   const deps = findAllProjectNodeDependencies(
     context.projectName,

@@ -8,6 +8,7 @@ import {
   renderGitInspectInstruction,
   renderHandoffPathFooter,
   renderMigrationBlock,
+  renderMigrationDocumentationBlock,
   stripAnsi,
 } from './shared-rendering';
 
@@ -20,6 +21,11 @@ export interface HybridPromptMigrationContext {
   promptPath: string;
   /** Absolute path the agent must write its handoff file to. */
   handoffFileAbsolutePath: string;
+  /**
+   * Path to the migration's documentation file, if any - workspace-relative,
+   * or absolute when it resolves outside the workspace.
+   */
+  documentationPath?: string;
   /** Context captured from the deterministic generator phase. */
   impl?: {
     /** Raw output from the generator (devkit logger + console). */
@@ -62,6 +68,8 @@ export function buildHybridPromptUserPrompt(
     ...renderMigrationBlock(ctx),
   ];
 
+  lines.push(...renderMigrationDocumentationBlock(ctx.documentationPath));
+
   const logs = escapeXmlBody(stripAnsi(ctx.impl?.logs ?? '').trim());
   const agentContext = filterNonEmptyStrings(ctx.impl?.agentContext ?? []);
   const hasDiffContext = !!ctx.impl?.hasDiffContext;
@@ -100,7 +108,7 @@ export function buildHybridPromptUserPrompt(
     ``,
     `<precedence>If anything in the sections above conflicts with the instructions file, the instructions file wins.</precedence>`,
     ``,
-    `Open the instructions file (path is workspace-relative), follow its instructions step by step using the sections above as context, then write your handoff JSON to:`,
+    `Open the instructions file (path is workspace-relative), follow its instructions step by step using the sections above as context, then end the step per the handoff contract. Your handoff path is:`,
     ...renderHandoffPathFooter(ctx.handoffFileAbsolutePath)
   );
 

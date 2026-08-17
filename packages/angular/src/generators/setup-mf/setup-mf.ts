@@ -11,10 +11,10 @@ import {
   moduleFederationEnhancedVersion,
   nxVersion,
   tsNodeVersion,
+  webpackMergeVersion,
 } from '../../utils/versions';
 import {
   getInstalledAngularDevkitVersion,
-  getInstalledAngularVersionInfo,
   versions,
 } from '../utils/version-utils';
 import {
@@ -35,10 +35,8 @@ import {
   updateTsConfig,
 } from './lib';
 import type { Schema } from './schema';
-import { warnAngularSetupMfGeneratorDeprecation } from '../../utils/module-federation-deprecation';
 
 export async function setupMf(tree: Tree, rawOptions: Schema) {
-  warnAngularSetupMfGeneratorDeprecation();
   assertSupportedAngularVersion(tree);
   const options = normalizeOptions(tree, rawOptions);
   const projectConfig = readProjectConfiguration(tree, options.appName);
@@ -64,6 +62,7 @@ export async function setupMf(tree: Tree, rawOptions: Schema) {
           {
             '@nx/web': nxVersion,
             '@nx/webpack': nxVersion,
+            'webpack-merge': webpackMergeVersion,
             '@nx/module-federation': nxVersion,
           }
         )
@@ -97,6 +96,7 @@ export async function setupMf(tree: Tree, rawOptions: Schema) {
           {},
           {
             '@nx/webpack': nxVersion,
+            'webpack-merge': webpackMergeVersion,
             '@module-federation/enhanced': moduleFederationEnhancedVersion,
             '@nx/module-federation': nxVersion,
           }
@@ -136,22 +136,19 @@ export async function setupMf(tree: Tree, rawOptions: Schema) {
   }
 
   if (!options.skipPackageJson) {
-    const { major: angularMajorVersion } = getInstalledAngularVersionInfo(tree);
-    if (angularMajorVersion >= 20) {
-      const angularDevkitVersion =
-        getInstalledAngularDevkitVersion(tree) ??
-        versions(tree).angularDevkitVersion;
-      // the executors used by MF require @angular-devkit/build-angular
-      tasks.push(
-        addDependenciesToPackageJson(
-          tree,
-          {},
-          { '@angular-devkit/build-angular': angularDevkitVersion },
-          undefined,
-          true
-        )
-      );
-    }
+    const angularDevkitVersion =
+      getInstalledAngularDevkitVersion(tree) ??
+      versions(tree).angularDevkitVersion;
+    // the executors used by MF require @angular-devkit/build-angular
+    tasks.push(
+      addDependenciesToPackageJson(
+        tree,
+        {},
+        { '@angular-devkit/build-angular': angularDevkitVersion },
+        undefined,
+        true
+      )
+    );
   }
 
   // format files

@@ -33,7 +33,6 @@ import {
   projectIsRootProjectInStandaloneWorkspace,
   updateLintConfig,
 } from './lib/util-functions';
-import type { LinterType } from '@nx/eslint';
 import {
   findStorybookAndBuildTargetsAndCompiler,
   getStorybookVersionToInstall,
@@ -171,9 +170,9 @@ export async function configurationGeneratorInternal(
   updateLintConfig(tree, schema);
 
   addBuildStorybookToCacheableOperations(tree);
-  addStorybookToNamedInputs(tree);
+  addStorybookToNamedInputs(tree, schema);
   if (!hasPlugin) {
-    addStorybookToTargetDefaults(tree);
+    addStorybookToTargetDefaults(tree, schema);
   }
 
   let devDeps = {};
@@ -244,7 +243,6 @@ function normalizeSchema(
 
   const defaults = {
     interactionTests: true,
-    linter: 'eslint' as LinterType,
     js: false,
     tsConfiguration: true,
     addPlugin,

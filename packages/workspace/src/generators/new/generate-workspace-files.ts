@@ -8,15 +8,17 @@ import {
   updateJson,
   writeJson,
 } from '@nx/devkit';
-import { connectToNxCloud } from 'nx/src/nx-cloud/generators/connect-to-nx-cloud/connect-to-nx-cloud';
-import { createNxCloudOnboardingURL } from 'nx/src/nx-cloud/utilities/url-shorten';
+import {
+  connectToNxCloud,
+  createNxCloudOnboardingURL,
+  setupAiAgentsGenerator,
+} from '@nx/devkit/internal';
 import { join } from 'path';
 import { gte } from 'semver';
 import { deduceDefaultBase } from '../../utilities/default-base';
 import { nxVersion } from '../../utils/versions';
 import { Preset } from '../utils/presets';
 import type { NormalizedSchema } from './new';
-import { setupAiAgentsGenerator } from 'nx/src/ai/set-up-ai-agents/set-up-ai-agents';
 
 type PresetInfo = {
   generateAppCmd?: string;
@@ -234,10 +236,10 @@ function createNxJson(
     defaultBase,
     targetDefaults:
       process.env.NX_ADD_PLUGINS === 'false'
-        ? [
-            { target: 'build', cache: true, dependsOn: ['^build'] },
-            { target: 'lint', cache: true },
-          ]
+        ? {
+            build: { cache: true, dependsOn: ['^build'] },
+            lint: { cache: true },
+          }
         : undefined,
     analytics,
   };
@@ -252,21 +254,9 @@ function createNxJson(
       sharedGlobals: [],
     };
     if (process.env.NX_ADD_PLUGINS === 'false') {
-      const td = nxJson.targetDefaults;
-      if (Array.isArray(td)) {
-        const buildIdx = td.findIndex(
-          (e) =>
-            e.target === 'build' &&
-            e.executor === undefined &&
-            e.projects === undefined &&
-            e.plugin === undefined
-        );
-        if (buildIdx >= 0) {
-          td[buildIdx] = {
-            ...td[buildIdx],
-            inputs: ['production', '^production'],
-          };
-        }
+      const build = nxJson.targetDefaults?.build;
+      if (build && !Array.isArray(build)) {
+        build.inputs = ['production', '^production'];
       }
       nxJson.useInferencePlugins = false;
     }

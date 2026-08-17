@@ -14,8 +14,8 @@
     "tinyglobby": "catalog:",
     "tslib": "catalog:typescript"
   },
-  "type": "commonjs",
-  "main": "./src/index.js",
-  "typings": "./src/index.d.ts",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "typings": "./dist/src/index.d.ts",
   "devDependencies": {}
 }

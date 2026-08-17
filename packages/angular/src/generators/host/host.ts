@@ -2,6 +2,7 @@ import {
   determineProjectNameAndRootOptions,
   ensureRootProjectName,
 } from '@nx/devkit/internal';
+import { isTypedLintingEnabled } from '@nx/eslint/internal';
 import {
   formatFiles,
   getProjects,
@@ -12,6 +13,7 @@ import {
   updateProjectConfiguration,
 } from '@nx/devkit';
 import { isValidVariable } from '@nx/js';
+import { normalizeLinterOption } from '@nx/js/internal';
 import { assertSupportedAngularVersion } from '../../utils/assert-supported-angular-version';
 import { E2eTestRunner } from '../../utils/test-runners';
 import applicationGenerator from '../application/application';
@@ -24,10 +26,8 @@ import { assertNotUsingTsSolutionSetup } from '../utils/validations';
 import { getInstalledAngularVersionInfo } from '../utils/version-utils';
 import { updateSsrSetup, validateOptions } from './lib';
 import type { Schema } from './schema';
-import { warnAngularHostGeneratorDeprecation } from '../../utils/module-federation-deprecation';
 
 export async function host(tree: Tree, schema: Schema) {
-  warnAngularHostGeneratorDeprecation();
   assertSupportedAngularVersion(tree);
   assertNotUsingTsSolutionSetup(tree, 'host');
   validateOptions(tree, schema);
@@ -40,6 +40,10 @@ export async function host(tree: Tree, schema: Schema) {
 
   const { typescriptConfiguration = true, ...options }: Schema = schema;
   options.standalone = options.standalone ?? true;
+  // Resolved before delegating so the host and every generated remote share one
+  // answer. `applicationGenerator` returns a new object rather than mutating
+  // this one, so resolving there would ask again for each remote.
+  options.linter = await normalizeLinterOption(tree, options.linter);
 
   const projects = getProjects(tree);
 
@@ -104,7 +108,7 @@ export async function host(tree: Tree, schema: Schema) {
     prefix: options.prefix,
     typescriptConfiguration,
     standalone: options.standalone,
-    setParserOptionsProject: options.setParserOptionsProject,
+    enableTypedLinting: isTypedLintingEnabled(options),
   });
 
   let installTasks = [appInstallTask];

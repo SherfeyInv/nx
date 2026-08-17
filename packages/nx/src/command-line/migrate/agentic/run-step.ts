@@ -40,6 +40,17 @@ export interface AgenticStepResult {
   ambiguous: boolean;
 }
 
+/**
+ * `runStep` travels in the context rather than being imported by its call
+ * sites, so this module loads only where the context is built, behind an
+ * agentic-enabled gate.
+ */
+export interface AgenticRunContext {
+  agentic: EnabledResolvedAgentic;
+  runDir: string;
+  runStep: typeof runAgenticPromptStep;
+}
+
 export interface RunAgenticPromptStepInput {
   root: string;
   migration: {
@@ -49,6 +60,13 @@ export interface RunAgenticPromptStepInput {
     description?: string;
     prompt?: string;
   };
+  /**
+   * Path to the migration's documentation file, resolved by the orchestrator -
+   * workspace-relative, or absolute when the file resolves outside the
+   * workspace. Omitted when the migration declares no `documentation` or it
+   * can't be resolved.
+   */
+  documentationPath?: string;
   agentic: EnabledResolvedAgentic;
   runDir: string;
   installDepsIfChanged: () => Promise<void>;
@@ -77,6 +95,7 @@ export async function runAgenticPromptStep(
     runDir,
     installDepsIfChanged,
     implContext,
+    documentationPath,
     mode = 'author',
   } = input;
 
@@ -110,6 +129,7 @@ export async function runAgenticPromptStep(
       version: migration.version,
       description: migration.description,
       handoffFileAbsolutePath: handoffFilePath,
+      documentationPath,
       impl: implContext,
     });
   } else {
@@ -120,6 +140,7 @@ export async function runAgenticPromptStep(
       description: migration.description,
       promptPath: migration.prompt!,
       handoffFileAbsolutePath: handoffFilePath,
+      documentationPath,
     };
     userPrompt = implContext
       ? buildHybridPromptUserPrompt({ ...promptCtx, impl: implContext })

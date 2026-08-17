@@ -1,4 +1,4 @@
-import 'nx/src/internal-testing-utils/mock-project-graph';
+import '@nx/devkit/internal-testing-utils/mock-project-graph';
 
 import {
   addProjectConfiguration,
@@ -32,9 +32,11 @@ describe('@nx/eslint:workspace-rules-project', () => {
     });
     await lintWorkspaceRulesProjectGenerator(tree);
 
-    expect(
-      readJson<NxJsonConfiguration>(tree, 'nx.json').targetDefaults.lint.inputs
-    ).toContain('{workspaceRoot}/tools/eslint-rules/**/*');
+    const td = readJson<NxJsonConfiguration>(tree, 'nx.json').targetDefaults!;
+    const lint = Array.isArray(td)
+      ? td.find((e) => e.target === 'lint')
+      : td.lint;
+    expect(lint?.inputs).toContain('{workspaceRoot}/tools/eslint-rules/**/*');
   });
 
   it('should generate the required files', async () => {

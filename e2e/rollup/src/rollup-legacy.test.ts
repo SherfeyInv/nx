@@ -20,7 +20,9 @@ describe('Rollup Plugin', () => {
   beforeAll(() => {
     originalAddPluginsEnv = process.env.NX_ADD_PLUGINS;
     process.env.NX_ADD_PLUGINS = 'false';
-    newProject({ packages: ['@nx/rollup', '@nx/js'] });
+    newProject({
+      packages: ['@nx/rollup', '@nx/js', '@nx/eslint', '@nx/jest'],
+    });
   });
 
   afterAll(() => {
@@ -247,10 +249,7 @@ describe('Rollup Plugin', () => {
           loadConfig,
           createMatchPath,
         } from 'tsconfig-paths';
-        import {
-          calculateProjectBuildableDependencies,
-          createTmpTsConfig,
-        } from '@nx/js/src/utils/buildable-libs-utils.js';
+        import { calculateProjectBuildableDependencies, createTmpTsConfig } from '@nx/js/internal';
         
         const __dirname = dirname(fileURLToPath(import.meta.url));
         

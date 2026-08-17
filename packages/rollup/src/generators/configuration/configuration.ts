@@ -1,4 +1,9 @@
-import { addBuildTargetDefaults } from '@nx/devkit/internal';
+import {
+  addBuildTargetDefaults,
+  readTargetDefaultsForTarget,
+  mergeTargetConfigurations,
+  type PackageJson,
+} from '@nx/devkit/internal';
 import {
   formatFiles,
   GeneratorCallback,
@@ -14,20 +19,21 @@ import {
   writeJson,
 } from '@nx/devkit';
 import { getUpdatedPackageJsonContent, readTsConfig } from '@nx/js';
-import { getImportPath } from '@nx/js/src/utils/get-import-path';
-import { ensureTypescript } from '@nx/js/src/utils/typescript/ensure-typescript';
 import {
+  getImportPath,
+  createTreeParseConfigHost,
+  ensureTypescript,
   getDefinedCustomConditionName,
   isUsingTsSolutionSetup,
   TS_SOLUTION_SETUP_TSCONFIG_INPUT,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
+} from '@nx/js/internal';
 import { dirname, join, relative } from 'node:path/posix';
-import { mergeTargetConfigurations } from 'nx/src/devkit-internals';
-import type { PackageJson } from 'nx/src/utils/package-json';
 import { RollupExecutorOptions } from '../../executors/rollup/schema';
 import { RollupWithNxPluginOptions } from '../../plugins/with-nx/with-nx-options';
 import { ensureDependencies } from '../../utils/ensure-dependencies';
 import { hasPlugin } from '../../utils/has-plugin';
+import { warnRollupExecutorGenerating } from '../../utils/deprecation';
+import { assertSupportedRollupVersion } from '../../utils/versions';
 import { rollupInitGenerator } from '../init/init';
 import { RollupProjectSchema } from './schema';
 
@@ -37,6 +43,8 @@ export async function configurationGenerator(
   tree: Tree,
   options: RollupProjectSchema
 ) {
+  assertSupportedRollupVersion(tree);
+
   const tasks: GeneratorCallback[] = [];
   const nxJson = readNxJson(tree);
   const addPluginDefault =
@@ -55,6 +63,7 @@ export async function configurationGenerator(
   if (hasPlugin(tree)) {
     outputConfig = createRollupConfig(tree, options, isTsSolutionSetup);
   } else {
+    warnRollupExecutorGenerating();
     options.buildTarget ??= 'build';
     checkForTargetConflicts(tree, options);
     addBuildTarget(tree, options, isTsSolutionSetup);
@@ -178,9 +187,11 @@ function updatePackageJson(
       const nxJson = readNxJson(tree);
       const mergedTarget = mergeTargetConfigurations(
         projectTarget,
-        (projectTarget.executor
-          ? nxJson.targetDefaults?.[projectTarget.executor]
-          : undefined) ?? nxJson.targetDefaults?.[options.buildTarget]
+        readTargetDefaultsForTarget(
+          options.buildTarget,
+          nxJson.targetDefaults,
+          projectTarget.executor
+        )
       );
       ({ main, outputPath } = mergedTarget.options);
     }
@@ -299,11 +310,10 @@ function updateTsConfig(tree: Tree, options: RollupProjectSchema): void {
     ts = ensureTypescript();
   }
 
-  const parsedTsConfig = readTsConfig(tsconfigPath, {
-    ...ts.sys,
-    readFile: (p) => tree.read(p, 'utf-8'),
-    fileExists: (p) => tree.exists(p),
-  });
+  const parsedTsConfig = readTsConfig(
+    tsconfigPath,
+    createTreeParseConfigHost(tree)
+  );
 
   updateJson(tree, tsconfigPath, (json) => {
     if (parsedTsConfig.options.module === ts.ModuleKind.NodeNext) {

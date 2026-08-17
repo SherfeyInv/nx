@@ -12,20 +12,21 @@ import {
   updateJson,
   updateProjectConfiguration,
 } from '@nx/devkit';
-import { libraryGenerator as jsLibraryGenerator } from '@nx/js';
-import { addTsLibDependencies } from '@nx/js/src/utils/typescript/add-tslib-dependencies';
+import {
+  libraryGenerator as jsLibraryGenerator,
+  addTsLibDependencies,
+} from '@nx/js';
 import {
   getProjectSourceRoot,
   isUsingTsSolutionSetup,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
-import { tsLibVersion } from '@nx/js/src/utils/versions';
-import type { PackageJson } from 'nx/src/utils/package-json';
-import { nxVersion } from 'nx/src/utils/versions';
+  tsLibVersion,
+} from '@nx/js/internal';
 import { join } from 'path';
 import { hasGenerator } from '../../utils/has-generator';
 import { generatorGenerator } from '../generator/generator';
 import { CreatePackageSchema } from './schema';
 import { NormalizedSchema, normalizeSchema } from './utils/normalize-schema';
+import { type PackageJson, nxVersion } from '@nx/devkit/internal';
 
 export async function createPackageGenerator(
   host: Tree,
@@ -95,7 +96,9 @@ async function addPresetGenerator(
       path: join(projectRoot, 'src/generators/preset/generator'),
       unitTestRunner: schema.unitTestRunner,
       skipFormat: true,
-      skipLintChecks: schema.linter === 'none',
+      // Lint checks are an ESLint-only feature; asking for them under any other
+      // linter makes `pluginLintCheckGenerator` log an error and do nothing.
+      skipLintChecks: schema.linter !== 'eslint',
     });
   }
 

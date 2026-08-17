@@ -84,6 +84,7 @@ describe('nx release multiple release branches', () => {
             tag: true,
           },
           currentVersionResolver: 'git-tag',
+          adjustSemverBumpsForZeroMajorVersion: false,
         },
       };
 
@@ -169,7 +170,7 @@ describe('nx release multiple release branches', () => {
 
       NX   Running release version for project: {project-name}
 
-      {project-name} 🏷️  Resolved the current version as 0.0.7 from git tag "v0.0.7", based on releaseTagPattern "v{version}"
+      {project-name} 🏷️  Resolved the current version as 0.0.7 from git tag "v0.0.7", based on releaseTag.pattern "v{version}"
       {project-name} ❓ Applied semver relative bump "minor", from the given specifier, to get new version 0.1.0
       {project-name} ✍️  New version 0.1.0 written to manifest: {project-name}/package.json
 
@@ -190,9 +191,6 @@ describe('nx release multiple release branches', () => {
       -   "version": "0.0.7",
       +   "version": "0.1.0",
       "exports": {
-
-      }
-      +
 
 
       "name": "@proj/{project-name}",
@@ -218,7 +216,7 @@ describe('nx release multiple release branches', () => {
 
       NX   Running release version for project: {project-name}
 
-      {project-name} 🏷️  Resolved the current version as 0.0.7 from git tag "v0.0.7", based on releaseTagPattern "v{version}"
+      {project-name} 🏷️  Resolved the current version as 0.0.7 from git tag "v0.0.7", based on releaseTag.pattern "v{version}"
       {project-name} ❓ Applied semver relative bump "patch", from the given specifier, to get new version 0.0.8
       {project-name} ✍️  New version 0.0.8 written to manifest: {project-name}/package.json
 
@@ -271,6 +269,7 @@ describe('nx release multiple release branches', () => {
             tag: true,
           },
           currentVersionResolver: 'git-tag',
+          adjustSemverBumpsForZeroMajorVersion: false,
         },
       };
 
@@ -330,9 +329,6 @@ describe('nx release multiple release branches', () => {
       +   "version": "0.1.0",
       "exports": {
 
-      }
-      +
-
 
       "name": "@proj/{project-name}",
       -   "version": "0.0.0",
@@ -357,7 +353,7 @@ describe('nx release multiple release branches', () => {
 
       NX   Running release version for project: {project-name}
 
-      {project-name} 🏷️  Resolved the current version as 0.1.0 from git tag "v0.1.0", based on releaseTagPattern "v{version}"
+      {project-name} 🏷️  Resolved the current version as 0.1.0 from git tag "v0.1.0", based on releaseTag.pattern "v{version}"
       {project-name} ❓ Applied semver relative bump "major", from the given specifier, to get new version 1.0.0
       {project-name} ✍️  New version 1.0.0 written to manifest: {project-name}/package.json
 
@@ -384,9 +380,6 @@ describe('nx release multiple release branches', () => {
       -   "version": "0.0.0",
       +   "version": "1.0.0",
       "exports": {
-
-      }
-      +
 
 
       "name": "@proj/{project-name}",

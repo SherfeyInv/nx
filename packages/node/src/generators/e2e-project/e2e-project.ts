@@ -1,6 +1,7 @@
 import {
   determineProjectNameAndRootOptions,
   logShowProjectCommand,
+  type PackageJson,
 } from '@nx/devkit/internal';
 import {
   addDependenciesToPackageJson,
@@ -20,26 +21,27 @@ import {
 } from '@nx/devkit';
 import { lintProjectGenerator } from '@nx/eslint';
 import {
+  addLintingToProject,
+  normalizeLinterOption,
+  addProjectToTsSolutionWorkspace,
+  isUsingTsSolutionSetup,
+  addSwcTestConfig,
+} from '@nx/js/internal';
+import {
   javaScriptOverride,
   typeScriptOverride,
-} from '@nx/eslint/src/generators/init/global-eslint-config';
+  addPluginsToLintConfig,
+  isEslintConfigSupported,
+  replaceOverridesInLintConfig,
+} from '@nx/eslint/internal';
 import * as path from 'path';
 import { axiosVersion } from '../../utils/versions';
 import { Schema } from './schema';
 import {
-  addPluginsToLintConfig,
-  isEslintConfigSupported,
-  replaceOverridesInLintConfig,
-} from '@nx/eslint/src/generators/utils/eslint-file';
-import { findRootJestPreset } from '@nx/jest/src/utils/config/config-file';
-import { getInstalledJestMajorVersion } from '@nx/jest/src/utils/versions';
-import {
-  addProjectToTsSolutionWorkspace,
-  isUsingTsSolutionSetup,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
+  findRootJestPreset,
+  getInstalledJestMajorVersion,
+} from '@nx/jest/internal';
 import { relative } from 'node:path/posix';
-import { addSwcTestConfig } from '@nx/js/src/utils/swc/add-swc-config';
-import type { PackageJson } from 'nx/src/utils/package-json';
 
 export async function e2eProjectGenerator(host: Tree, options: Schema) {
   return await e2eProjectGeneratorInternal(host, {
@@ -250,6 +252,24 @@ export async function e2eProjectGeneratorInternal(
   );
   tasks.push(installTask);
 
+  if (
+    options.linter &&
+    options.linter !== 'eslint' &&
+    options.linter !== 'none'
+  ) {
+    tasks.push(
+      await addLintingToProject(host, {
+        linter: options.linter,
+        project: options.e2eProjectName,
+        rootProject: options.rootProject,
+        addPlugin: options.addPlugin,
+        // The generated e2e specs are Jest; this is what enables the linter's
+        // Jest rules.
+        unitTestRunner: 'jest',
+      })
+    );
+  }
+
   if (options.linter === 'eslint') {
     const linterTask = await lintProjectGenerator(host, {
       project: options.e2eProjectName,
@@ -258,7 +278,7 @@ export async function e2eProjectGeneratorInternal(
       tsConfigPaths: [
         joinPathFragments(options.e2eProjectRoot, 'tsconfig.json'),
       ],
-      setParserOptionsProject: false,
+      enableTypedLinting: false,
       skipPackageJson: false,
       rootProject: options.rootProject,
       addPlugin: options.addPlugin,
@@ -338,6 +358,9 @@ async function normalizeOptions(
   return {
     addPlugin,
     ...options,
+    // Both arms below test for a concrete linter, so an unresolved `undefined`
+    // would fall through them and leave the e2e project with no linter at all.
+    linter: await normalizeLinterOption(tree, options.linter),
     e2eProjectRoot,
     e2eProjectName,
     importPath,

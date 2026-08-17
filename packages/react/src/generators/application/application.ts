@@ -1,13 +1,17 @@
 import {
   logShowProjectCommand,
   promptWhenInteractive,
+  upsertTargetDefault,
 } from '@nx/devkit/internal';
+import { assertSupportedReactVersion } from '../../utils/assert-supported-react-version';
 import {
   formatFiles,
   GeneratorCallback,
   joinPathFragments,
   readNxJson,
   runTasksInSerial,
+  type TargetConfiguration,
+  type TargetDefaults,
   Tree,
   updateJson,
   updateNxJson,
@@ -17,7 +21,8 @@ import {
   addProjectToTsSolutionWorkspace,
   shouldConfigureTsSolutionSetup,
   updateTsconfigFiles,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
+  sortPackageJsonFields,
+} from '@nx/js/internal';
 import { extractTsConfigBase } from '../../utils/create-ts-config';
 import reactInitGenerator from '../init/init';
 import { createApplicationFiles } from './lib/create-application-files';
@@ -41,8 +46,6 @@ import {
   setupVitestConfiguration,
 } from './lib/bundlers/add-vite';
 import { Schema } from './schema';
-import { sortPackageJsonFields } from '@nx/js/src/utils/package-json/sort-fields';
-
 export async function applicationGenerator(
   tree: Tree,
   schema: Schema
@@ -58,6 +61,8 @@ export async function applicationGeneratorInternal(
   tree: Tree,
   schema: Schema
 ): Promise<GeneratorCallback> {
+  assertSupportedReactVersion(tree);
+
   const tasks = [];
 
   const addTsPlugin = shouldConfigureTsSolutionSetup(
@@ -114,17 +119,22 @@ export async function applicationGeneratorInternal(
   tasks.push(initTask);
 
   if (!options.addPlugin) {
-    const nxJson = readNxJson(tree);
-    nxJson.targetDefaults ??= {};
-    if (!Object.keys(nxJson.targetDefaults).includes('build')) {
-      nxJson.targetDefaults.build = {
+    const nxJson = readNxJson(tree) ?? {};
+    const existing = findBuildDefault(nxJson.targetDefaults);
+    if (!existing) {
+      upsertTargetDefault(tree, nxJson, {
+        target: 'build',
         cache: true,
         dependsOn: ['^build'],
-      };
-    } else if (!nxJson.targetDefaults.build.dependsOn) {
-      nxJson.targetDefaults.build.dependsOn = ['^build'];
+      });
+      updateNxJson(tree, nxJson);
+    } else if (!existing.dependsOn) {
+      upsertTargetDefault(tree, nxJson, {
+        target: 'build',
+        dependsOn: ['^build'],
+      });
+      updateNxJson(tree, nxJson);
     }
-    updateNxJson(tree, nxJson);
   }
 
   if (options.bundler === 'webpack') {
@@ -239,6 +249,21 @@ export async function applicationGeneratorInternal(
   });
 
   return runTasksInSerial(...tasks);
+}
+
+function findBuildDefault(
+  td: TargetDefaults | undefined
+): Partial<TargetConfiguration> | undefined {
+  if (!td) return undefined;
+  const value = td['build'];
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    const found = value.find((e) => e.filter === undefined);
+    if (!found) return undefined;
+    const { filter: _f, ...rest } = found;
+    return rest;
+  }
+  return value;
 }
 
 export default applicationGenerator;

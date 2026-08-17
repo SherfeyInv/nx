@@ -1,4 +1,4 @@
-import 'nx/src/internal-testing-utils/mock-fs';
+import '@nx/devkit/internal-testing-utils/mock-fs';
 
 import type {
   FileData,
@@ -9,9 +9,9 @@ import type {
 import { Linter } from 'eslint';
 import * as jsoncParser from 'jsonc-eslint-parser';
 import { vol } from 'memfs';
-import type { FileDataDependency } from 'nx/src/config/project-graph';
-import { createProjectRootMappings } from 'nx/src/project-graph/utils/find-project-for-path';
-import * as packageManager from 'nx/src/utils/package-manager';
+import { detectPackageManager } from '@nx/devkit';
+import type { FileDataDependency } from '@nx/devkit/internal';
+import { createProjectRootMappings } from '@nx/devkit/internal';
 import dependencyChecks, {
   Options,
   RULE_NAME as dependencyChecksRuleName,
@@ -25,6 +25,14 @@ jest.mock('@nx/devkit', () => ({
 jest.mock('nx/src/utils/workspace-root', () => ({
   workspaceRoot: '/root',
 }));
+
+jest.mock('nx/src/utils/package-manager', () => {
+  const actual = jest.requireActual('nx/src/utils/package-manager');
+  return {
+    ...actual,
+    detectPackageManager: jest.fn(actual.detectPackageManager),
+  };
+});
 
 const rootPackageJson = {
   dependencies: {
@@ -200,7 +208,15 @@ describe('Dependency checks (eslint)', () => {
             data: {
               root: 'libs/liba',
               targets: {
-                build: {},
+                build: {
+                  // Simulate the graph construction merging targetDefaults into target data.
+                  // The PR removed targetDefaults lookup from getTargetInputs, relying on
+                  // graph construction to pre-merge them before the hasher runs.
+                  inputs: [
+                    '{projectRoot}/**/*',
+                    '!{projectRoot}/**/?(*.)+(spec|test).[jt]s?(x)?(.snap)',
+                  ],
+                },
               },
             },
           },
@@ -1710,9 +1726,7 @@ describe('Dependency checks (eslint)', () => {
 
   describe('pnpm catalogs', () => {
     beforeEach(() => {
-      jest
-        .spyOn(packageManager, 'detectPackageManager')
-        .mockReturnValue('pnpm');
+      (detectPackageManager as jest.Mock).mockReturnValue('pnpm');
     });
 
     afterEach(() => {
@@ -2664,6 +2678,123 @@ describe('Dependency checks (eslint)', () => {
     });
   });
 
+  describe('bun catalogs', () => {
+    beforeEach(() => {
+      (detectPackageManager as jest.Mock).mockReturnValue('bun');
+    });
+
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
+    function runMissingDepRule(rootPackageJsonContent: object) {
+      const packageJson = {
+        name: '@mycompany/liba',
+        dependencies: {
+          external1: '^16.0.0',
+        },
+      };
+
+      const fileSys = {
+        './libs/liba/package.json': JSON.stringify(packageJson, null, 2),
+        './libs/liba/src/index.ts': '',
+        './package.json': JSON.stringify(rootPackageJsonContent, null, 2),
+      };
+      vol.fromJSON(fileSys, '/root');
+
+      const failures = runRule(
+        {},
+        `/root/libs/liba/package.json`,
+        JSON.stringify(packageJson, null, 2),
+        {
+          nodes: {
+            liba: {
+              name: 'liba',
+              type: 'lib',
+              data: {
+                root: 'libs/liba',
+                targets: {
+                  build: {},
+                },
+              },
+            },
+          },
+          externalNodes,
+          dependencies: {
+            liba: [
+              { source: 'liba', target: 'npm:external1', type: 'static' },
+              {
+                source: 'liba',
+                target: 'npm:random-external',
+                type: 'static',
+              },
+            ],
+          },
+        },
+        {
+          liba: [
+            createFile(`libs/liba/src/main.ts`, [
+              'npm:external1',
+              'npm:random-external',
+            ]),
+            createFile(`libs/liba/package.json`, ['npm:external1']),
+          ],
+        }
+      );
+
+      expect(failures.length).toEqual(1);
+      expect(failures[0].message).toContain('random-external');
+
+      const content = JSON.stringify(packageJson, null, 2);
+      return (
+        content.slice(0, failures[0].fix!.range[0]) +
+        failures[0].fix!.text +
+        content.slice(failures[0].fix!.range[1])
+      );
+    }
+
+    it('should use catalog: for missing dep when package is in the catalog field', () => {
+      const result = runMissingDepRule({
+        ...rootPackageJson,
+        catalog: { 'random-external': '^1.0.0' },
+      });
+
+      expect(result).toContain('"random-external": "catalog:"');
+    });
+
+    it('should use catalog:default for missing dep when package is in catalogs.default', () => {
+      // Unlike pnpm, bun's `catalog:` does not resolve from `catalogs.default`;
+      // it is an ordinary named catalog addressed as `catalog:default`.
+      const result = runMissingDepRule({
+        ...rootPackageJson,
+        catalogs: { default: { 'random-external': '^1.0.0' } },
+      });
+
+      expect(result).toContain('"random-external": "catalog:default"');
+    });
+
+    it('should use catalog:name for missing dep when package is in a named catalog', () => {
+      const result = runMissingDepRule({
+        ...rootPackageJson,
+        catalogs: { react: { 'random-external': '^1.0.0' } },
+      });
+
+      expect(result).toContain('"random-external": "catalog:react"');
+    });
+
+    it('should resolve from a workspaces-nested catalog', () => {
+      const result = runMissingDepRule({
+        ...rootPackageJson,
+        workspaces: {
+          packages: ['libs/*'],
+          catalog: { 'random-external': '^1.0.0' },
+        },
+      });
+
+      expect(result).toContain('"random-external": "catalog:"');
+    });
+  });
+
   it('should require swc if @nx/js:swc executor', () => {
     const packageJson = {
       name: '@mycompany/liba',
@@ -2893,7 +3024,7 @@ describe('Dependency checks (eslint)', () => {
       `);
     });
 
-    it('should use workspace:* for peer dependencies when peerDepsVersionStrategy is workspace', () => {
+    it('should preserve installed version for external peer dependencies when peerDepsVersionStrategy is workspace', () => {
       const packageJson = {
         name: '@mycompany/liba',
         peerDependencies: {},
@@ -2946,13 +3077,89 @@ describe('Dependency checks (eslint)', () => {
         "{
           "name": "@mycompany/liba",
           "peerDependencies": {
-            "external1": "workspace:*"
+            "external1": "~16.1.2"
           }
         }"
       `);
     });
 
-    it('should report version mismatch for peer dependencies when peerDepsVersionStrategy is workspace', () => {
+    it('should use workspace:* for workspace-package peer dependencies when peerDepsVersionStrategy is workspace', () => {
+      const packageJson = {
+        name: '@mycompany/liba',
+        peerDependencies: {},
+      };
+
+      const fileSys = {
+        './libs/liba/package.json': JSON.stringify(packageJson, null, 2),
+        './libs/liba/src/index.ts': '',
+        './libs/libb/package.json': JSON.stringify(
+          { name: '@mycompany/libb', version: '0.0.1' },
+          null,
+          2
+        ),
+        './package.json': JSON.stringify(rootPackageJson, null, 2),
+      };
+      vol.fromJSON(fileSys, '/root');
+
+      const failures = runRule(
+        { peerDepsVersionStrategy: 'workspace' },
+        `/root/libs/liba/package.json`,
+        JSON.stringify(packageJson, null, 2),
+        {
+          nodes: {
+            liba: {
+              name: 'liba',
+              type: 'lib',
+              data: {
+                root: 'libs/liba',
+                targets: { build: {} },
+              },
+            },
+            libb: {
+              name: 'libb',
+              type: 'lib',
+              data: {
+                root: 'libs/libb',
+                metadata: {
+                  js: {
+                    packageName: '@mycompany/libb',
+                    isInPackageManagerWorkspaces: true,
+                  },
+                },
+                targets: { build: {} },
+              },
+            },
+          },
+          externalNodes,
+          dependencies: {
+            liba: [{ source: 'liba', target: 'libb', type: 'static' }],
+          },
+        },
+        {
+          liba: [createFile(`libs/liba/src/main.ts`, ['libb'])],
+          libb: [createFile(`libs/libb/src/index.ts`)],
+        }
+      );
+
+      expect(failures.length).toEqual(1);
+
+      const content = JSON.stringify(packageJson, null, 2);
+      const result =
+        content.slice(0, failures[0].fix.range[0]) +
+        failures[0].fix.text +
+        content.slice(failures[0].fix.range[1]);
+
+      expect(result).toMatchInlineSnapshot(`
+        "{
+          "name": "@mycompany/liba",
+          "peerDependencies": {
+            "@mycompany/libb": "workspace:*"
+          }
+        }"
+      `);
+    });
+
+    it('should NOT rewrite external peer dependency ranges to workspace:* when peerDepsVersionStrategy is workspace', () => {
       const packageJson = {
         name: '@mycompany/liba',
         peerDependencies: {
@@ -2994,12 +3201,76 @@ describe('Dependency checks (eslint)', () => {
         }
       );
 
-      expect(failures.length).toEqual(1);
-      expect(failures[0].message).toMatchInlineSnapshot(
-        `"The version specifier does not contain the installed version of "external1" package: workspace:*."`
+      // external1 is already pinned to the installed version, so no failure
+      // — and crucially, the rule must not try to rewrite it to workspace:*
+      expect(failures.length).toEqual(0);
+    });
+
+    it('should rewrite workspace-package peer dependency ranges to workspace:* when peerDepsVersionStrategy is workspace', () => {
+      const packageJson = {
+        name: '@mycompany/liba',
+        peerDependencies: {
+          '@mycompany/libb': '^1.0.0',
+        },
+      };
+
+      const fileSys = {
+        './libs/liba/package.json': JSON.stringify(packageJson, null, 2),
+        './libs/liba/src/index.ts': '',
+        './libs/libb/package.json': JSON.stringify(
+          { name: '@mycompany/libb', version: '0.0.1' },
+          null,
+          2
+        ),
+        './package.json': JSON.stringify(rootPackageJson, null, 2),
+      };
+      vol.fromJSON(fileSys, '/root');
+
+      const failures = runRule(
+        { peerDepsVersionStrategy: 'workspace' },
+        `/root/libs/liba/package.json`,
+        JSON.stringify(packageJson, null, 2),
+        {
+          nodes: {
+            liba: {
+              name: 'liba',
+              type: 'lib',
+              data: {
+                root: 'libs/liba',
+                targets: { build: {} },
+              },
+            },
+            libb: {
+              name: 'libb',
+              type: 'lib',
+              data: {
+                root: 'libs/libb',
+                metadata: {
+                  js: {
+                    packageName: '@mycompany/libb',
+                    isInPackageManagerWorkspaces: true,
+                  },
+                },
+                targets: { build: {} },
+              },
+            },
+          },
+          externalNodes,
+          dependencies: {
+            liba: [{ source: 'liba', target: 'libb', type: 'static' }],
+          },
+        },
+        {
+          liba: [createFile(`libs/liba/src/main.ts`, ['libb'])],
+          libb: [createFile(`libs/libb/src/index.ts`)],
+        }
       );
 
-      // Apply fix
+      expect(failures.length).toEqual(1);
+      expect(failures[0].message).toMatchInlineSnapshot(
+        `"The version specifier does not contain the installed version of "@mycompany/libb" package: workspace:*."`
+      );
+
       const content = JSON.stringify(packageJson, null, 2);
       const result =
         content.slice(0, failures[0].fix.range[0]) +
@@ -3010,7 +3281,7 @@ describe('Dependency checks (eslint)', () => {
         "{
           "name": "@mycompany/liba",
           "peerDependencies": {
-            "external1": "workspace:*"
+            "@mycompany/libb": "workspace:*"
           }
         }"
       `);
@@ -3280,7 +3551,7 @@ describe('Dependency checks (eslint)', () => {
       `);
     });
 
-    it('should use workspace:* for all peer dependencies when peerDepsVersionStrategy is workspace', () => {
+    it('should use workspace:* for workspace-package peer dependencies but keep installed ranges for external packages when peerDepsVersionStrategy is workspace', () => {
       const packageJson = {
         name: '@mycompany/liba',
         peerDependencies: {},
@@ -3319,6 +3590,12 @@ describe('Dependency checks (eslint)', () => {
               type: 'lib',
               data: {
                 root: 'libs/libb',
+                metadata: {
+                  js: {
+                    packageName: '@mycompany/libb',
+                    isInPackageManagerWorkspaces: true,
+                  },
+                },
                 targets: {
                   build: {},
                 },
@@ -3349,11 +3626,12 @@ describe('Dependency checks (eslint)', () => {
         failures[0].fix.text +
         content.slice(failures[0].fix.range[1]);
 
-      // Both workspace packages and external packages should use workspace:*
-      // for version synchronization in integrated monorepos
+      // Only the workspace package gets workspace:*; the external npm package
+      // keeps its installed range so pnpm install doesn't fail with
+      // ERR_PNPM_WORKSPACE_PKG_NOT_FOUND (#35318).
       const resultObj = JSON.parse(result);
       expect(resultObj.peerDependencies['@mycompany/libb']).toBe('workspace:*');
-      expect(resultObj.peerDependencies.external1).toBe('workspace:*');
+      expect(resultObj.peerDependencies.external1).toBe('~16.1.2');
     });
 
     it('should report version mismatch for workspace packages when peerDepsVersionStrategy is workspace', () => {
@@ -3397,6 +3675,12 @@ describe('Dependency checks (eslint)', () => {
               type: 'lib',
               data: {
                 root: 'libs/libb',
+                metadata: {
+                  js: {
+                    packageName: '@mycompany/libb',
+                    isInPackageManagerWorkspaces: true,
+                  },
+                },
                 targets: {
                   build: {},
                 },
@@ -3432,6 +3716,75 @@ describe('Dependency checks (eslint)', () => {
           }
         }"
       `);
+    });
+
+    it('should NOT rewrite to workspace:* for workspace projects not in package manager workspaces', () => {
+      // A workspace project consumed via TS path mappings but not registered
+      // in pnpm-workspace.yaml / package.json "workspaces" cannot be resolved
+      // as workspace:*, so the rule must leave its peer dep range alone.
+      const packageJson = {
+        name: '@mycompany/liba',
+        peerDependencies: {
+          '@mycompany/libb': '^1.0.0',
+        },
+      };
+
+      const fileSys = {
+        './libs/liba/package.json': JSON.stringify(packageJson, null, 2),
+        './libs/liba/src/index.ts': '',
+        './libs/libb/package.json': JSON.stringify(
+          { name: '@mycompany/libb', version: '0.0.1' },
+          null,
+          2
+        ),
+        './package.json': JSON.stringify(rootPackageJson, null, 2),
+      };
+      vol.fromJSON(fileSys, '/root');
+
+      const failures = runRule(
+        { peerDepsVersionStrategy: 'workspace' },
+        `/root/libs/liba/package.json`,
+        JSON.stringify(packageJson, null, 2),
+        {
+          nodes: {
+            liba: {
+              name: 'liba',
+              type: 'lib',
+              data: {
+                root: 'libs/liba',
+                targets: { build: {} },
+              },
+            },
+            libb: {
+              name: 'libb',
+              type: 'lib',
+              data: {
+                root: 'libs/libb',
+                metadata: {
+                  js: {
+                    packageName: '@mycompany/libb',
+                    isInPackageManagerWorkspaces: false,
+                  },
+                },
+                targets: { build: {} },
+              },
+            },
+          },
+          externalNodes,
+          dependencies: {
+            liba: [{ source: 'liba', target: 'libb', type: 'static' }],
+          },
+        },
+        {
+          liba: [createFile(`libs/liba/src/main.ts`, ['libb'])],
+          libb: [createFile(`libs/libb/src/index.ts`)],
+        }
+      );
+
+      // The package range stays as-is — no workspace:* rewrite.
+      expect(failures.some((f) => f.message?.includes('workspace:*'))).toBe(
+        false
+      );
     });
   });
 });

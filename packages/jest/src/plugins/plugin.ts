@@ -4,11 +4,18 @@ import {
   loadConfigFile,
   getNamedInputs,
   PluginCache,
+  hashObject,
+  getGlobPatternsFromPackageManagerWorkspaces,
+  combineGlobPatterns,
+  getNxRequirePaths,
+  deriveGroupNameFromTarget,
+  globWithWorkspaceContext,
+  workspaceDataDirectory,
 } from '@nx/devkit/internal';
 import {
-  CreateNodesContextV2,
+  CreateNodesContext,
   createNodesFromFiles,
-  CreateNodesV2,
+  CreateNodes,
   detectPackageManager,
   getPackageManagerCommand,
   joinPathFragments,
@@ -27,18 +34,11 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { hashObject } from 'nx/src/devkit-internals';
-import { getGlobPatternsFromPackageManagerWorkspaces } from 'nx/src/plugins/package-json';
-import { workspaceDataDirectory } from 'nx/src/utils/cache-directory';
-import { combineGlobPatterns } from 'nx/src/utils/globs';
-import { getNxRequirePaths } from 'nx/src/utils/installation-directory';
-import { deriveGroupNameFromTarget } from 'nx/src/utils/plugins';
-import { globWithWorkspaceContext } from 'nx/src/utils/workspace-context';
 import { getLockFileName } from '@nx/js';
 import {
   walkTsconfigExtendsChain,
   type RawTsconfigJsonCache,
-} from '@nx/js/src/internal';
+} from '@nx/js/internal';
 import { getInstalledJestMajorVersion } from '../utils/versions';
 
 const REPORTER_BUILTINS = new Set(['default', 'github-actions', 'summary']);
@@ -78,7 +78,7 @@ type JestTargets = Awaited<ReturnType<typeof buildJestTargets>>;
 
 const jestConfigGlob = '**/jest.config.{cjs,mjs,js,cts,mts,ts}';
 
-export const createNodes: CreateNodesV2<JestPluginOptions> = [
+export const createNodes: CreateNodes<JestPluginOptions> = [
   jestConfigGlob,
   async (configFiles, options, context) => {
     const optionsHash = hashObject(options);
@@ -247,7 +247,7 @@ function checkIfConfigFileShouldBeProject(
   configFilePath: string,
   projectRoot: string,
   isInPackageManagerWorkspaces: (path: string) => boolean,
-  context: CreateNodesContextV2
+  context: CreateNodesContext
 ): boolean {
   // Do not create a project if package.json and project.json isn't there.
   const siblingFiles = readdirSync(join(context.workspaceRoot, projectRoot));
@@ -288,7 +288,7 @@ async function buildJestTargets(
   configFilePath: string,
   projectRoot: string,
   options: JestPluginOptions,
-  context: CreateNodesContextV2,
+  context: CreateNodesContext,
   presetCache: Record<string, unknown>,
   pmc: ReturnType<typeof getPackageManagerCommand>
 ): Promise<Pick<ProjectConfiguration, 'targets' | 'metadata'>> {
@@ -415,7 +415,6 @@ async function buildJestTargets(
         const targetName = `${options.ciTargetName}--${relativePath}`;
         dependsOn.push({
           target: targetName,
-          projects: 'self',
           params: 'forward',
           options: 'forward',
         });
@@ -521,7 +520,10 @@ async function buildJestTargets(
           : // @ts-expect-error Jest v29 doesn't have the projectConfig parameter
             await source.getTestPaths(config.globalConfig);
 
-      const testPaths = new Set(specs.tests.map(({ path }) => path));
+      // Sort to keep atomized target name insertion order stable.
+      // jest.SearchSource.getTestPaths walks via jest-haste-map's
+      // parallel workers, so its output order isn't guaranteed.
+      const testPaths = new Set(specs.tests.map(({ path }) => path).sort());
 
       if (testPaths.size > 0) {
         const targetGroup = [];
@@ -556,7 +558,6 @@ async function buildJestTargets(
           const targetName = `${options.ciTargetName}--${relativePath}`;
           dependsOn.push({
             target: targetName,
-            projects: 'self',
             params: 'forward',
             options: 'forward',
           });
@@ -904,7 +905,7 @@ function getOutputs(
   projectRoot: string,
   coverageDirectory: string | undefined,
   outputFile: string | undefined,
-  context: CreateNodesContextV2
+  context: CreateNodesContext
 ): string[] {
   function getOutput(path: string): string {
     const relativePath = relative(
@@ -981,7 +982,7 @@ async function getTestPaths(
   projectRoot: string,
   rawConfig: any,
   rootDir: string,
-  context: CreateNodesContextV2,
+  context: CreateNodesContext,
   presetCache: Record<string, unknown>
 ): Promise<{ specs: string[]; testMatch: string[] }> {
   const testMatch = await getJestOption<string[]>(

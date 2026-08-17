@@ -1,4 +1,3 @@
-import { lintProjectGenerator } from '@nx/eslint';
 import {
   addDependenciesToPackageJson,
   GeneratorCallback,
@@ -13,25 +12,32 @@ import {
   addOverrideToLintConfig,
   addPredefinedConfigToFlatLintConfig,
   isEslintConfigSupported,
-} from '@nx/eslint/src/generators/utils/eslint-file';
-import { useFlatConfig } from '@nx/eslint/src/utils/flat-config';
+  isTypedLintingEnabled,
+  useFlatConfig,
+} from '@nx/eslint/internal';
+import { addLintingToProject } from '@nx/js/internal';
 
 export async function addLinting(host: Tree, options: NormalizedSchema) {
-  if (options.linter === 'none') {
-    return () => {};
-  }
-
   const tasks: GeneratorCallback[] = [];
-  const lintTask = await lintProjectGenerator(host, {
-    linter: options.linter,
-    project: options.e2eProjectName,
-    tsConfigPaths: [
-      joinPathFragments(options.e2eProjectRoot, 'tsconfig.app.json'),
-    ],
-    skipFormat: true,
-    addPlugin: options.addPlugin,
-  });
-  tasks.push(lintTask);
+  tasks.push(
+    await addLintingToProject(host, {
+      linter: options.linter,
+      project: options.e2eProjectName,
+      tsConfigPaths: [
+        joinPathFragments(options.e2eProjectRoot, 'tsconfig.app.json'),
+      ],
+      enableTypedLinting: isTypedLintingEnabled(options),
+      addPlugin: options.addPlugin,
+      // Detox e2e specs are Jest; this is what enables the linter's Jest rules.
+      unitTestRunner: 'jest',
+    })
+  );
+
+  // Everything below configures ESLint — predefined configs, `extends`, ignore
+  // entries — which have no equivalent in other linters.
+  if (options.linter && options.linter !== 'eslint') {
+    return runTasksInSerial(...tasks);
+  }
 
   if (isEslintConfigSupported(host)) {
     if (useFlatConfig(host)) {
@@ -59,7 +65,9 @@ export async function addLinting(host: Tree, options: NormalizedSchema) {
   const installTask = addDependenciesToPackageJson(
     host,
     extraEslintDependencies.dependencies,
-    extraEslintDependencies.devDependencies
+    extraEslintDependencies.devDependencies,
+    undefined,
+    true
   );
   tasks.push(installTask);
 

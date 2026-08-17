@@ -10,19 +10,18 @@ import {
   writeJson,
 } from '@nx/devkit';
 import { lintInitGenerator } from '@nx/eslint';
-import { setupRootEsLint } from '@nx/eslint/src/generators/lint-project/setup-root-eslint';
+import { setupRootEsLint } from '@nx/eslint/internal';
 import {
   getRootTsConfigPathInTree,
   initGenerator as jsInitGenerator,
 } from '@nx/js';
-import { deduceDefaultBase } from 'nx/src/utils/default-base';
-import { prettierVersion } from '@nx/js/src/utils/versions';
-import { toNewFormat } from 'nx/src/adapter/angular-json';
+import { prettierVersion } from '@nx/js/internal';
 import { angularDevkitVersion, nxVersion } from '../../../utils/versions';
 import type { ProjectMigrator } from '../migrators';
 import type { GeneratorOptions } from '../schema';
 import type { WorkspaceRootFileTypesInfo } from './types';
 import { join } from 'path';
+import { deduceDefaultBase, toNewFormat } from '@nx/devkit/internal';
 
 export function validateWorkspace(tree: Tree): void {
   const errors: string[] = [];

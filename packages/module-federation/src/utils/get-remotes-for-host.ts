@@ -5,12 +5,12 @@ import {
   type ProjectGraph,
   ProjectGraphProjectNode,
 } from '@nx/devkit';
-import { registerTsProject } from '@nx/js/src/internal';
-import { findMatchingProjects } from 'nx/src/utils/find-matching-projects';
+import { loadTsFile } from '@nx/js/internal';
 import * as pc from 'picocolors';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { ModuleFederationConfig } from './models';
+import { findMatchingProjects } from '@nx/devkit/internal';
 
 interface ModuleFederationExecutorContext {
   projectName: string;
@@ -249,19 +249,18 @@ export function getModuleFederationConfig(
     );
   }
 
-  // create a no-op so this can be called with issue
   const fullTSconfigPath = tsconfigPath.startsWith(workspaceRoot)
     ? tsconfigPath
     : join(workspaceRoot, tsconfigPath);
-  let cleanupTranspiler = () => {};
-  if (existsSync(moduleFederationConfigPathTS)) {
-    cleanupTranspiler = registerTsProject(fullTSconfigPath);
+  const isTsConfig = existsSync(moduleFederationConfigPathTS);
+  if (isTsConfig) {
     moduleFederationConfigPath = moduleFederationConfigPathTS;
   }
 
   try {
-    const config = require(moduleFederationConfigPath);
-    cleanupTranspiler();
+    const config = isTsConfig
+      ? loadTsFile<any>(moduleFederationConfigPath, fullTSconfigPath)
+      : require(moduleFederationConfigPath);
 
     return config.default || config;
   } catch {

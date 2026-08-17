@@ -1,4 +1,4 @@
-import 'nx/src/internal-testing-utils/mock-project-graph';
+import '@nx/devkit/internal-testing-utils/mock-project-graph';
 
 import { Tree, readJson, readProjectConfiguration } from '@nx/devkit';
 import { createTreeWithEmptyWorkspace } from '@nx/devkit/testing';
@@ -226,7 +226,7 @@ describe('NxPlugin Executor Generator', () => {
       expect(
         tree.read('my-plugin/src/executors/my-executor/hasher.ts').toString()
       ).toMatchInlineSnapshot(`
-        "import { CustomHasher } from '@nx/devkit';
+        "import type { CustomHasher } from '@nx/devkit';
 
         /**
          * This is a boilerplate custom hasher that matches

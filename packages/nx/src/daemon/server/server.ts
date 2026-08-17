@@ -1,4 +1,4 @@
-import { existsSync, statSync } from 'fs';
+import { chmodSync, existsSync } from 'fs';
 import { createServer, Server, Socket } from 'net';
 import { join } from 'path';
 import { deserialize, serialize } from 'v8';
@@ -13,6 +13,7 @@ import '../../utils/perf-logging';
 import { nxVersion } from '../../utils/versions';
 import { setupWorkspaceContext } from '../../utils/workspace-context';
 import { workspaceRoot } from '../../utils/workspace-root';
+import { readNxJson } from '../../config/nx-json';
 import { getPlugins } from '../../project-graph/plugins/get-plugins';
 import { getDaemonProcessIdSync, writeDaemonJsonProcessCache } from '../cache';
 import { isNxVersionMismatch } from '../is-nx-version-mismatch';
@@ -25,7 +26,10 @@ import {
   RESET_CONFIGURE_AI_AGENTS_STATUS,
 } from '../message-types/configure-ai-agents';
 import { applyDaemonEnvFromClient } from '../client/daemon-environment';
-import { isDaemonMessage } from '../message-types/daemon-message';
+import {
+  assertNotForeignWorkspaceMessage,
+  isDaemonMessage,
+} from '../message-types/daemon-message';
 import {
   FLUSH_SYNC_GENERATOR_CHANGES_TO_DISK,
   isHandleFlushSyncGeneratorChangesToDiskMessage,
@@ -93,6 +97,7 @@ import {
   killSocketOrPath,
 } from '../socket-utils';
 import { registerFileChangeListener } from './file-watching/file-change-events';
+import { routeWorkspaceChanges } from './file-watching/route-workspace-changes';
 import {
   hasRegisteredFileWatcherSockets,
   registeredFileWatcherSockets,
@@ -154,6 +159,7 @@ import {
   handleServerProcessTerminationWithRestart,
   resetInactivityTimeout,
   respondToClient,
+  respondWithError,
   respondWithErrorAndExit,
   SERVER_INACTIVITY_TIMEOUT_MS,
   storeOutputWatcherInstance,
@@ -254,10 +260,25 @@ async function handleMessage(socket: Socket, data: string) {
   }
   serverLogger.log(`Received ${mode} message of type ${payload.type}`);
 
+  // A mismatch means the client reached the wrong daemon (e.g. a shared
+  // NX_SOCKET_DIR). Respond, but stay alive for our own workspace.
+  if (isDaemonMessage(payload)) {
+    try {
+      assertNotForeignWorkspaceMessage(payload, workspaceRoot);
+    } catch (e) {
+      await respondWithError(socket, `Workspace root mismatch`, e);
+      return;
+    }
+  }
+
   if (isDaemonMessage(payload) && payload.env) {
-    const envChanged = applyDaemonEnvFromClient(payload.env);
-    if (envChanged) {
-      serverLogger.log('Graph recompute necessary due to env variable refresh');
+    const changedEnvKeys = applyDaemonEnvFromClient(payload.env);
+    if (changedEnvKeys.length > 0) {
+      serverLogger.log(
+        `Graph recompute necessary due to env variable refresh. Changed keys: ${changedEnvKeys.join(
+          ', '
+        )}`
+      );
       forwardEnvToPluginWorkers(payload.env);
       invalidateGraphCache();
     }
@@ -622,58 +643,7 @@ const handleWorkspaceChanges: FileWatcherCallback = async (
     }
 
     serverLogger.watcherLog(convertChangeEventsToLogMessage(changeEvents));
-
-    const updatedFilesToHash = [];
-    const createdFilesToHash = [];
-    const deletedFiles = [];
-
-    for (const event of changeEvents) {
-      if (event.type === 'delete') {
-        deletedFiles.push(event.path);
-      } else {
-        try {
-          const s = statSync(join(workspaceRoot, event.path));
-          if (s.isFile()) {
-            if (event.type === 'update') {
-              updatedFilesToHash.push(event.path);
-            } else {
-              createdFilesToHash.push(event.path);
-            }
-          }
-        } catch (e) {
-          // this can happen when the update file was deleted right after
-        }
-      }
-    }
-
-    const cap = 10;
-    const summarize = (files: string[]) =>
-      files.length === 0
-        ? '(none)'
-        : files.length <= cap
-          ? files.map((f) => `  - ${f}`).join('\n')
-          : files
-              .slice(0, cap)
-              .map((f) => `  - ${f}`)
-              .join('\n') + `\n  ... and ${files.length - cap} more`;
-    if (
-      createdFilesToHash.length ||
-      updatedFilesToHash.length ||
-      deletedFiles.length
-    ) {
-      serverLogger.watcherLog(
-        `File changes detected:\n` +
-          `Created:\n${summarize(createdFilesToHash)}\n` +
-          `Updated:\n${summarize(updatedFilesToHash)}\n` +
-          `Deleted:\n${summarize(deletedFiles)}`
-      );
-    }
-
-    scheduleProjectGraphRecomputation(
-      createdFilesToHash,
-      updatedFilesToHash,
-      deletedFiles
-    );
+    routeWorkspaceChanges(changeEvents);
   } catch (err) {
     serverLogger.watcherLog(`Unexpected workspace error`, err.message);
     console.error(err);
@@ -709,6 +679,16 @@ const handleOutputsChanges: FileWatcherCallback = async (err, changeEvents) => {
 };
 
 export async function startServer(): Promise<Server> {
+  // Watch before scan: a file written during boot must be visible to the
+  // watcher or the scan below. Scan-first left a blind window where such
+  // files stayed invisible to both until an unrelated change arrived.
+  if (!getWatcherInstance()) {
+    storeWatcherInstance(await watchWorkspace(server, handleWorkspaceChanges));
+    serverLogger.watcherLog(
+      `Subscribed to changes within: ${workspaceRoot} (native)`
+    );
+  }
+
   setupWorkspaceContext(workspaceRoot);
 
   // Initialize analytics for daemon process
@@ -776,18 +756,19 @@ export async function startServer(): Promise<Server> {
         try {
           serverLogger.log(`Started listening on: ${socketPath}`);
 
+          // Linux gates connect() on write permission to the socket file; macOS/BSD gate
+          // on the directory, which is already 0700. Done after listen because
+          // net.Server.listen takes no mode and umask is process-global.
+          if (!isWindows) {
+            try {
+              chmodSync(socketPath, 0o600);
+            } catch {
+              // Best effort; the 0700 socket directory is the primary control.
+            }
+          }
+
           // this triggers the storage of the lock file hash
           daemonIsOutdated();
-
-          if (!getWatcherInstance()) {
-            storeWatcherInstance(
-              await watchWorkspace(server, handleWorkspaceChanges)
-            );
-
-            serverLogger.watcherLog(
-              `Subscribed to changes within: ${workspaceRoot} (native)`
-            );
-          }
 
           if (!getOutputWatcherInstance()) {
             storeOutputWatcherInstance(
@@ -825,7 +806,7 @@ export async function startServer(): Promise<Server> {
   });
 }
 function forwardEnvToPluginWorkers(env: Record<string, string>) {
-  getPlugins()
+  getPlugins(readNxJson(workspaceRoot))
     .then((plugins) => {
       for (const plugin of plugins) {
         plugin.setWorkerEnv?.(env)?.catch((e) => {

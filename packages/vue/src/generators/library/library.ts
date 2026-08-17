@@ -1,4 +1,8 @@
-import { getRelativeCwd, logShowProjectCommand } from '@nx/devkit/internal';
+import {
+  getRelativeCwd,
+  logShowProjectCommand,
+  type PackageJson,
+} from '@nx/devkit/internal';
 import {
   addProjectConfiguration,
   formatFiles,
@@ -18,18 +22,16 @@ import {
   addReleaseConfigForNonTsSolution,
   addReleaseConfigForTsSolution,
   releaseTasks,
-} from '@nx/js/src/generators/library/utils/add-release-config';
-import { sortPackageJsonFields } from '@nx/js/src/utils/package-json/sort-fields';
-import {
+  sortPackageJsonFields,
   addProjectToTsSolutionWorkspace,
   shouldConfigureTsSolutionSetup,
   updateTsconfigFiles,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
-import type { PackageJson } from 'nx/src/utils/package-json';
+} from '@nx/js/internal';
 import { relative } from 'path';
 import { addLinting } from '../../utils/add-linting';
 import { extractTsConfigBase } from '../../utils/create-ts-config';
 import { ensureDependencies } from '../../utils/ensure-dependencies';
+import { assertSupportedVueVersion } from '../../utils/assert-supported-vue-version';
 import componentGenerator from '../component/component';
 import { vueInitGenerator } from '../init/init';
 import { addVite } from './lib/add-vite';
@@ -47,6 +49,8 @@ export function libraryGenerator(tree: Tree, schema: Schema) {
 }
 
 export async function libraryGeneratorInternal(tree: Tree, schema: Schema) {
+  assertSupportedVueVersion(tree);
+
   const tasks: GeneratorCallback[] = [];
 
   if (schema.publishable === true && !schema.importPath) {

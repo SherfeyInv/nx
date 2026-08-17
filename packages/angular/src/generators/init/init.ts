@@ -10,7 +10,8 @@ import {
   readNxJson,
   type Tree,
 } from '@nx/devkit';
-import { createNodesV2 } from '../../plugins/plugin';
+import { createNodes } from '../../plugins/plugin';
+import { assertSupportedAngularVersion } from '../../utils/assert-supported-angular-version';
 import { assertNotUsingTsSolutionSetup } from '../utils/validations';
 import {
   getInstalledAngularDevkitVersion,
@@ -22,6 +23,7 @@ export async function angularInitGenerator(
   tree: Tree,
   options: Schema
 ): Promise<GeneratorCallback> {
+  assertSupportedAngularVersion(tree);
   assertNotUsingTsSolutionSetup(tree, 'init');
 
   ignoreAngularCacheDirectory(tree);
@@ -38,7 +40,7 @@ export async function angularInitGenerator(
       tree,
       await createProjectGraphAsync(),
       '@nx/angular/plugin',
-      createNodesV2,
+      createNodes,
       {
         targetNamePrefix: ['', 'angular:', 'angular-'],
       },

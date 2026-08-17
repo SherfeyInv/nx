@@ -1,14 +1,16 @@
-import 'nx/src/internal-testing-utils/mock-fs';
+import '@nx/devkit/internal-testing-utils/mock-fs';
 
 import type { FileData, ProjectFileMap, ProjectGraph } from '@nx/devkit';
 import { DependencyType } from '@nx/devkit';
-import { TargetProjectLocator } from '@nx/js/src/internal';
+import { TargetProjectLocator } from '@nx/js/internal';
 import * as parser from '@typescript-eslint/parser';
 import { TSESLint } from '@typescript-eslint/utils';
 import { vol } from 'memfs';
 import { join } from 'node:path';
-import { FileDataDependency } from 'nx/src/config/project-graph';
-import { createProjectRootMappings } from 'nx/src/project-graph/utils/find-project-for-path';
+import {
+  FileDataDependency,
+  createProjectRootMappings,
+} from '@nx/devkit/internal';
 import enforceModuleBoundaries, {
   RULE_NAME as enforceModuleBoundariesRuleName,
 } from '../../src/rules/enforce-module-boundaries';

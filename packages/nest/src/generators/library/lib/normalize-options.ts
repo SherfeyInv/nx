@@ -3,14 +3,15 @@ import {
   determineProjectNameAndRootOptions,
   ensureRootProjectName,
 } from '@nx/devkit/internal';
-import { getNpmScope } from '@nx/js/src/utils/package-json/get-npm-scope';
-import type { LibraryGeneratorSchema as JsLibraryGeneratorSchema } from '@nx/js/src/generators/library/schema';
-import type { LibraryGeneratorOptions, NormalizedOptions } from '../schema';
+import { isTypedLintingEnabled } from '@nx/eslint/internal';
 import {
+  getNpmScope,
   isUsingTsSolutionSetup,
   shouldConfigureTsSolutionSetup,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
-
+  normalizeLinterOption,
+} from '@nx/js/internal';
+import type { LibraryGeneratorSchema as JsLibraryGeneratorSchema } from '@nx/js/internal';
+import type { LibraryGeneratorOptions, NormalizedOptions } from '../schema';
 export async function normalizeOptions(
   tree: Tree,
   options: LibraryGeneratorOptions
@@ -51,7 +52,7 @@ export async function normalizeOptions(
     controller: options.controller ?? false,
     fileName,
     global: options.global ?? false,
-    linter: options.linter ?? 'eslint',
+    linter: await normalizeLinterOption(tree, options.linter),
     parsedTags,
     prefix: getNpmScope(tree), // we could also allow customizing this
     projectName:
@@ -86,7 +87,10 @@ export function toJsLibraryGeneratorOptions(
     tags: options.tags,
     testEnvironment: options.testEnvironment,
     unitTestRunner: options.unitTestRunner,
-    setParserOptionsProject: options.setParserOptionsProject,
+    // `deleteFiles` drops the generated spec, and a library without a
+    // controller or service is left with none at all.
+    passWithNoTests: true,
+    enableTypedLinting: isTypedLintingEnabled(options),
     addPlugin: options.addPlugin,
     useProjectJson: options.useProjectJson,
   };

@@ -1,4 +1,8 @@
-import { logShowProjectCommand } from '@nx/devkit/internal';
+import {
+  logShowProjectCommand,
+  createNxCloudOnboardingURLForWelcomeApp,
+  getNxCloudAppOnBoardingUrl,
+} from '@nx/devkit/internal';
 import {
   addProjectConfiguration,
   ensurePackage,
@@ -14,15 +18,16 @@ import {
   updateJson,
   updateProjectConfiguration,
 } from '@nx/devkit';
-import { initGenerator as jsInitGenerator } from '@nx/js';
-import { extractTsConfigBase } from '@nx/js/src/utils/typescript/create-ts-config';
+import { initGenerator as jsInitGenerator, extractTsConfigBase } from '@nx/js';
 import {
-  createNxCloudOnboardingURLForWelcomeApp,
-  getNxCloudAppOnBoardingUrl,
-} from 'nx/src/nx-cloud/utilities/onboarding';
+  addLintingToProject,
+  addProjectToTsSolutionWorkspace,
+  shouldConfigureTsSolutionSetup,
+  updateTsconfigFiles,
+  sortPackageJsonFields,
+} from '@nx/js/internal';
 import { updateJestTestMatch } from '../../utils/testing-config-utils';
 import {
-  eslintVersion,
   isbotVersion,
   nxVersion,
   reactDomVersion,
@@ -32,6 +37,7 @@ import {
   typesReactDomVersion,
   typesReactVersion,
   viteVersion,
+  assertSupportedRemixVersion,
 } from '../../utils/versions';
 import initGenerator from '../init/init';
 import { updateDependencies } from '../utils/update-dependencies';
@@ -42,13 +48,6 @@ import {
   updateUnitTestConfig,
 } from './lib';
 import { NxRemixGeneratorSchema } from './schema';
-import {
-  addProjectToTsSolutionWorkspace,
-  shouldConfigureTsSolutionSetup,
-  updateTsconfigFiles,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
-import { sortPackageJsonFields } from '@nx/js/src/utils/package-json/sort-fields';
-
 export function remixApplicationGenerator(
   tree: Tree,
   options: NxRemixGeneratorSchema
@@ -64,11 +63,14 @@ export async function remixApplicationGeneratorInternal(
   tree: Tree,
   _options: NxRemixGeneratorSchema
 ) {
+  assertSupportedRemixVersion(tree);
+
   const addTsPlugin = shouldConfigureTsSolutionSetup(
     tree,
     _options.addPlugin,
     _options.useTsSolution
   );
+  // initGenerator enforces the TS pin and hard-errors on TS6.
   const tasks: GeneratorCallback[] = [
     await initGenerator(tree, {
       skipFormat: true,
@@ -127,7 +129,6 @@ export async function remixApplicationGeneratorInternal(
     reactDomVersion,
     typesReactVersion,
     typesReactDomVersion,
-    eslintVersion,
     typescriptVersion,
     viteVersion,
   };
@@ -193,7 +194,9 @@ export async function remixApplicationGeneratorInternal(
         typeof import('@nx/vite')
       >('@nx/vite', nxVersion);
       ensurePackage('@nx/vitest', nxVersion);
-      const { configurationGenerator } = await import('@nx/vitest/generators');
+      const {
+        configurationGenerator,
+      }: typeof import('@nx/vitest/generators') = require('@nx/vitest/generators');
       const vitestTask = await configurationGenerator(tree, {
         uiFramework: 'react',
         project: options.projectName,
@@ -256,14 +259,26 @@ export async function remixApplicationGeneratorInternal(
     );
   }
 
-  if (options.linter !== 'none') {
+  if (options.linter !== 'eslint' && options.linter !== 'none') {
+    tasks.push(
+      await addLintingToProject(tree, {
+        oxlintPlugins: ['react', 'react-perf', 'jsx-a11y'],
+        unitTestRunner: options.unitTestRunner,
+        linter: options.linter,
+        project: options.projectName,
+        addPlugin: options.addPlugin,
+      })
+    );
+  }
+
+  if (options.linter === 'eslint') {
     const { lintProjectGenerator } = ensurePackage<typeof import('@nx/eslint')>(
       '@nx/eslint',
       nxVersion
     );
-    const { addIgnoresToLintConfig } = await import(
-      '@nx/eslint/src/generators/utils/eslint-file'
-    );
+    const {
+      addIgnoresToLintConfig,
+    }: typeof import('@nx/eslint/internal') = require('@nx/eslint/internal');
     const eslintTask = await lintProjectGenerator(tree, {
       linter: options.linter,
       project: options.projectName,

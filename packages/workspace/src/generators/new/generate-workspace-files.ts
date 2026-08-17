@@ -8,15 +8,17 @@ import {
   updateJson,
   writeJson,
 } from '@nx/devkit';
-import { connectToNxCloud } from 'nx/src/nx-cloud/generators/connect-to-nx-cloud/connect-to-nx-cloud';
-import { createNxCloudOnboardingURL } from 'nx/src/nx-cloud/utilities/url-shorten';
+import {
+  connectToNxCloud,
+  createNxCloudOnboardingURL,
+  setupAiAgentsGenerator,
+} from '@nx/devkit/internal';
 import { join } from 'path';
 import { gte } from 'semver';
 import { deduceDefaultBase } from '../../utilities/default-base';
 import { nxVersion } from '../../utils/versions';
 import { Preset } from '../utils/presets';
 import type { NormalizedSchema } from './new';
-import { setupAiAgentsGenerator } from 'nx/src/ai/set-up-ai-agents/set-up-ai-agents';
 
 type PresetInfo = {
   generateAppCmd?: string;
@@ -198,7 +200,7 @@ export async function generateWorkspaceFiles(
   const [packageMajor] = packageManagerVersion.split('.');
   if (options.packageManager === 'pnpm' && +packageMajor >= 7) {
     if (gte(packageManagerVersion, '10.6.0')) {
-      addPnpmSettings(tree, options);
+      addPnpmSettings(tree, options, packageManagerVersion);
     } else {
       createNpmrc(tree, options);
     }
@@ -235,13 +237,8 @@ function createNxJson(
     targetDefaults:
       process.env.NX_ADD_PLUGINS === 'false'
         ? {
-            build: {
-              cache: true,
-              dependsOn: ['^build'],
-            },
-            lint: {
-              cache: true,
-            },
+            build: { cache: true, dependsOn: ['^build'] },
+            lint: { cache: true },
           }
         : undefined,
     analytics,
@@ -257,7 +254,10 @@ function createNxJson(
       sharedGlobals: [],
     };
     if (process.env.NX_ADD_PLUGINS === 'false') {
-      nxJson.targetDefaults.build.inputs = ['production', '^production'];
+      const build = nxJson.targetDefaults?.build;
+      if (build && !Array.isArray(build)) {
+        build.inputs = ['production', '^production'];
+      }
       nxJson.useInferencePlugins = false;
     }
   }
@@ -335,13 +335,18 @@ async function createReadme(
   });
 }
 
-// ensure that pnpm install add all the missing peer deps
+function addPnpmSettings(
+  tree: Tree,
+  options: NormalizedSchema,
+  packageManagerVersion: string
+) {
+  const buildAllowlist = gte(packageManagerVersion, '11.0.0')
+    ? `allowBuilds:\n  nx: true`
+    : `onlyBuiltDependencies:\n  - nx`;
 
-function addPnpmSettings(tree: Tree, options: NormalizedSchema) {
   tree.write(
     join(options.directory, 'pnpm-workspace.yaml'),
-    `autoInstallPeers: true
-`
+    `autoInstallPeers: true\n${buildAllowlist}\n`
   );
 }
 

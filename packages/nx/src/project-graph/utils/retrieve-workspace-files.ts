@@ -118,7 +118,7 @@ export async function retrieveProjectConfigurationsWithAngularProjects(
     pluginsToLoad.push(join(__dirname, '../../adapter/angular-json'));
   }
 
-  const separatedPlugins = await getPluginsSeparated(workspaceRoot);
+  const separatedPlugins = await getPluginsSeparated(nxJson, workspaceRoot);
 
   const res = await retrieveProjectConfigurations(
     separatedPlugins,
@@ -177,6 +177,15 @@ export async function retrieveProjectConfigurationsWithoutPluginInference(
   projectsWithoutPluginCache.set(cacheKey, projects);
 
   return projects;
+}
+
+/**
+ * Clears the cache backing `retrieveProjectConfigurationsWithoutPluginInference`,
+ * so a long-lived daemon picks up projects (e.g. a new local plugin) added
+ * after the first snapshot instead of serving it forever.
+ */
+export function clearProjectsWithoutPluginInferenceCache(): void {
+  projectsWithoutPluginCache.clear();
 }
 
 export function getGlobPatternsOfPlugins(

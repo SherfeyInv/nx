@@ -1,8 +1,13 @@
-import { determineArtifactNameAndDirectoryOptions } from '@nx/devkit/internal';
+import {
+  determineArtifactNameAndDirectoryOptions,
+  PackageJson,
+  readNxMigrateConfig,
+} from '@nx/devkit/internal';
 import {
   formatFiles,
   generateFiles,
   joinPathFragments,
+  offsetFromRoot,
   readJson,
   readProjectConfiguration,
   updateJson,
@@ -10,9 +15,8 @@ import {
   writeJson,
   type Tree,
 } from '@nx/devkit';
-import { isUsingTsSolutionSetup } from '@nx/js/src/utils/typescript/ts-solution-setup';
-import { join } from 'node:path';
-import { PackageJson, readNxMigrateConfig } from 'nx/src/utils/package-json';
+import { isUsingTsSolutionSetup } from '@nx/js/internal';
+import { dirname, join } from 'node:path';
 import { getArtifactMetadataDirectory } from '../../utils/paths';
 import { nxVersion } from '../../utils/versions';
 import { addMigrationJsonChecks } from '../lint-checks/generator';
@@ -84,7 +88,11 @@ function updateMigrationsJson(host: Tree, options: NormalizedSchema) {
   );
   const migrations = host.exists(migrationsPath)
     ? readJson(host, migrationsPath)
-    : {};
+    : {
+        $schema: `${offsetFromRoot(
+          dirname(migrationsPath)
+        )}node_modules/nx/schemas/migrations-schema.json`,
+      };
 
   const generators = migrations.generators ?? {};
 

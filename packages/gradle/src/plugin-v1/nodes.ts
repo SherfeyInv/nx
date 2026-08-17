@@ -1,22 +1,24 @@
-import { calculateHashForCreateNodes } from '@nx/devkit/internal';
 import {
-  CreateNodesV2,
-  CreateNodesContextV2,
+  calculateHashesForCreateNodes,
+  workspaceDataDirectory,
+  PluginCache,
+  findProjectForPath,
+  hashObject,
+} from '@nx/devkit/internal';
+import {
+  CreateNodes,
+  CreateNodesContext,
   ProjectConfiguration,
   TargetConfiguration,
   createNodesFromFiles,
 } from '@nx/devkit';
 import { basename, dirname, join } from 'node:path';
-import { workspaceDataDirectory } from 'nx/src/utils/cache-directory';
-import { PluginCache } from 'nx/src/utils/plugin-cache-utils';
-import { findProjectForPath } from 'nx/src/devkit-internals';
 
 import {
   populateGradleReport,
   getCurrentGradleReport,
   GradleReport,
 } from './utils/get-gradle-report';
-import { hashObject } from 'nx/src/hasher/file-hasher';
 import {
   gradleConfigAndTestGlob,
   gradleConfigGlob,
@@ -56,7 +58,11 @@ function normalizeOptions(options: GradlePluginOptions): GradlePluginOptions {
 
 type GradleTargets = Record<string, Partial<ProjectConfiguration>>;
 
-export const createNodesV2: CreateNodesV2<GradlePluginOptions> = [
+/**
+ * @deprecated The `@nx/gradle/plugin-v1` entry is deprecated and will be removed in Nx 24.
+ * Switch to the default `@nx/gradle` plugin.
+ */
+export const createNodesV2: CreateNodes<GradlePluginOptions> = [
   gradleConfigAndTestGlob,
   async (files, options, context) => {
     const { buildFiles, projectRoots, gradlewFiles, testFiles } =
@@ -81,11 +87,18 @@ export const createNodesV2: CreateNodesV2<GradlePluginOptions> = [
     );
 
     try {
+      const buildFileProjectRoots = buildFiles.map((f) => dirname(f));
+      const buildFileHashes = await calculateHashesForCreateNodes(
+        buildFileProjectRoots,
+        normalizeOptions(options) ?? {},
+        context
+      );
       return createNodesFromFiles(
         makeCreateNodesForGradleConfigFile(
           gradleReport,
           pluginCache,
-          gradleProjectRootToTestFilesMap
+          gradleProjectRootToTestFilesMap,
+          buildFileHashes
         ),
         buildFiles,
         options,
@@ -101,21 +114,40 @@ export const makeCreateNodesForGradleConfigFile =
   (
     gradleReport: GradleReport,
     pluginCache: PluginCache<Partial<ProjectConfiguration>>,
-    gradleProjectRootToTestFilesMap: Record<string, string[]> = {}
+    gradleProjectRootToTestFilesMap: Record<string, string[]> = {},
+    hashes?: string[]
   ) =>
   async (
     gradleFilePath,
     options: GradlePluginOptions | undefined,
-    context: CreateNodesContextV2
+    context: CreateNodesContext,
+    idx?: number
   ) => {
     const projectRoot = dirname(gradleFilePath);
     options = normalizeOptions(options);
 
-    const hash = await calculateHashForCreateNodes(
-      projectRoot,
-      options ?? {},
-      context
-    );
+    let hash: string;
+    if (hashes && idx !== undefined) {
+      hash = hashes[idx];
+      if (hash === undefined) {
+        throw new Error(
+          `Failed to compute hash for gradle project at ${projectRoot}`
+        );
+      }
+    } else {
+      const [computed] = await calculateHashesForCreateNodes(
+        [projectRoot],
+        options ?? {},
+        context
+      );
+      if (computed === undefined) {
+        throw new Error(
+          `Failed to compute hash for gradle project at ${projectRoot}`
+        );
+      }
+      hash = computed;
+    }
+
     if (!pluginCache.has(hash)) {
       pluginCache.set(
         hash,
@@ -149,7 +181,7 @@ async function createGradleProject(
   gradleReport: GradleReport,
   gradleFilePath: string,
   options: GradlePluginOptions | undefined,
-  context: CreateNodesContextV2,
+  context: CreateNodesContext,
   testFiles = []
 ) {
   try {
@@ -225,7 +257,7 @@ async function createGradleProject(
 async function createGradleTargets(
   tasks: GradleTask[],
   options: GradlePluginOptions | undefined,
-  context: CreateNodesContextV2,
+  context: CreateNodesContext,
   outputDirs: Map<string, string>,
   gradleProject: string,
   gradleBuildFilePath: string,
@@ -301,7 +333,7 @@ async function createGradleTargets(
 }
 
 function createInputsMap(
-  context: CreateNodesContextV2
+  context: CreateNodesContext
 ): Record<string, TargetConfiguration['inputs']> {
   const namedInputs = context.nxJsonConfiguration.namedInputs;
   return {
@@ -366,7 +398,6 @@ function getTestCiTargets(
     targetGroups[targetGroupName].push(targetName);
     dependsOn.push({
       target: targetName,
-      projects: 'self',
       params: 'forward',
     });
   });

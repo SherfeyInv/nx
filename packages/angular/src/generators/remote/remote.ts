@@ -2,6 +2,7 @@ import {
   determineProjectNameAndRootOptions,
   ensureRootProjectName,
 } from '@nx/devkit/internal';
+import { isTypedLintingEnabled } from '@nx/eslint/internal';
 import {
   addDependenciesToPackageJson,
   formatFiles,
@@ -12,7 +13,8 @@ import {
   Tree,
   updateProjectConfiguration,
 } from '@nx/devkit';
-import { swcHelpersVersion } from '@nx/js/src/utils/versions';
+import { swcHelpersVersion } from '@nx/js/internal';
+import { assertSupportedAngularVersion } from '../../utils/assert-supported-angular-version';
 import { E2eTestRunner } from '../../utils/test-runners';
 import { applicationGenerator } from '../application/application';
 import convertToRspack from '../convert-to-rspack/convert-to-rspack';
@@ -25,6 +27,7 @@ import { findNextAvailablePort, updateSsrSetup, validateOptions } from './lib';
 import type { Schema } from './schema';
 
 export async function remote(tree: Tree, schema: Schema) {
+  assertSupportedAngularVersion(tree);
   assertNotUsingTsSolutionSetup(tree, 'remote');
   validateOptions(tree, schema);
   // TODO: Replace with Rspack when confidence is high enough
@@ -89,7 +92,7 @@ export async function remote(tree: Tree, schema: Schema) {
     standalone: options.standalone,
     prefix: options.prefix,
     typescriptConfiguration,
-    setParserOptionsProject: options.setParserOptionsProject,
+    enableTypedLinting: isTypedLintingEnabled(options),
   });
 
   const installTasks = [appInstallTask];

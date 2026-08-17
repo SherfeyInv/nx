@@ -8,7 +8,7 @@ import {
   ProjectGraphExternalNode,
 } from '../../config/project-graph';
 import { ProjectConfiguration } from '../../config/workspace-json-project-json';
-import { hashArray } from '../../hasher/file-hasher';
+import { hashArray, hashObject } from '../../hasher/file-hasher';
 import { NxWorkspaceFilesExternals } from '../../native';
 import { buildProjectGraphUsingProjectFileMap as buildProjectGraphUsingFileMap } from '../../project-graph/build-project-graph';
 import {
@@ -76,7 +76,10 @@ export let currentSourceMaps: ConfigurationSourceMaps | undefined;
 
 // Maps file path to a version counter that increments on each modification.
 // This lets us detect mid-flight re-modifications when clearing processed files.
-const collectedUpdatedFiles = new Map<string, number>();
+const collectedUpdatedFiles = new Map<
+  string,
+  { version: number; hash: string }
+>();
 const collectedDeletedFiles = new Map<string, number>();
 
 const projectGraphRecomputationListeners = new Set<
@@ -97,35 +100,79 @@ let recomputationGeneration = 0;
 let cacheHasBeenPersisted = false;
 
 /**
- * Start a fresh project graph computation, in parallel with any in-flight
- * one. The new promise becomes `cachedSerializedProjectGraphPromise`; any
- * older compute will detect itself as stale at its next `isStale()` check
- * and chain to the cached pointer, so consumers awaiting the cached pointer
- * always end up on the latest compute.
- *
- * Notify + persist fire only when this IIFE is still the latest — older
- * IIFEs that chained their result through us have already had their side
- * effects fired by the IIFE that actually produced the result.
+ * Freshness-gated recompute. Each IIFE snapshots the nx.json `plugins`
+ * hash at kickoff and re-reads at commit; if it changed mid-flight, bail
+ * and kick a successor instead of clobbering the winner. Without this,
+ * `cachedSerializedProjectGraphPromise` is last-kickoff-wins and can
+ * return a graph built against a stale plugin set
+ * (see spread.test.ts "middle plugin" flake).
  */
 function kickOffRecompute() {
   let myPromise: Promise<SerializedProjectGraph>;
   myPromise = (async () => {
-    const plugins = await getPluginsSeparated();
-    const result = await processFilesAndCreateAndSerializeProjectGraph(plugins);
-    if (
-      cachedSerializedProjectGraphPromise === myPromise &&
-      result.projectGraph
-    ) {
-      notifyProjectGraphRecomputationListeners(
-        result.projectGraph,
-        result.sourceMaps,
-        result.error
-      );
-      persistProjectGraphToDisk(result);
+    // Must resolve, never reject: kickOffRecompute() runs fire-and-forget, so
+    // a rejected myPromise crashes the daemon (unhandled rejection). A throwing
+    // prologue (e.g. plugin load fails) becomes an errorResult the next requester surfaces.
+    try {
+      // Single read shared with getPluginsSeparated below. This collapses
+      // what would otherwise be two independent nx.json reads (our snap +
+      // the plugin loader's) into one, so the snap hash and the plugin
+      // set the compute uses always reflect the same disk state.
+      const nxJson = readNxJson(workspaceRoot);
+      const myPluginsHash = hashObject(nxJson.plugins ?? []);
+
+      const plugins = await getPluginsSeparated(nxJson, workspaceRoot);
+
+      // Plugin set we just loaded may already be stale vs disk.
+      if (isStale(myPluginsHash)) return chainToSuccessor(myPromise);
+
+      const result =
+        await processFilesAndCreateAndSerializeProjectGraph(plugins);
+
+      // Compute may have run against plugins that are now stale.
+      if (isStale(myPluginsHash)) return chainToSuccessor(myPromise);
+
+      if (
+        cachedSerializedProjectGraphPromise === myPromise &&
+        result.projectGraph
+      ) {
+        notifyProjectGraphRecomputationListeners(
+          result.projectGraph,
+          result.sourceMaps,
+          result.error
+        );
+        persistProjectGraphToDisk(result);
+      }
+      return result;
+    } catch (e) {
+      return errorResult(e);
     }
-    return result;
   })();
   cachedSerializedProjectGraphPromise = myPromise;
+}
+
+function isStale(expectedHash: string): boolean {
+  return readNxJsonPluginsHash() !== expectedHash;
+}
+
+/**
+ * Starts a successor recompute only when this IIFE is still the cached one.
+ * If a newer recompute already replaced the cached pointer, that newer
+ * recompute will produce the fresh result and we just need to return the
+ * pointer so awaiters chain onto it.
+ */
+function chainToSuccessor(
+  myPromise: Promise<SerializedProjectGraph>
+): Promise<SerializedProjectGraph> {
+  serverLogger.log(
+    'Discarding stale recompute result (nx.json plugins changed mid-compute).'
+  );
+  if (cachedSerializedProjectGraphPromise === myPromise) kickOffRecompute();
+  return cachedSerializedProjectGraphPromise;
+}
+
+function readNxJsonPluginsHash(): string {
+  return hashObject(readNxJson(workspaceRoot).plugins ?? []);
 }
 
 export async function getCachedSerializedProjectGraphPromise(
@@ -147,6 +194,14 @@ export async function getCachedSerializedProjectGraphPromise(
     await flushPendingWorkspaceChanges();
 
     await resetInternalStateIfNxDepsMissing();
+
+    // Yield one macrotask boundary so any TSFN-queued watcher callbacks
+    // run before we read collected*. Without this, an event that left
+    // the native side but is still queued in libuv's I/O queue (behind
+    // our request handler) would be invisible here and we'd serve a
+    // stale graph. Placed right before the read so no microtask gap
+    // separates them.
+    await new Promise(setImmediate);
 
     // If no compute exists or events are still in collected*, kick one off.
     // Otherwise reuse whatever is already in flight or cached.
@@ -224,9 +279,37 @@ export function scheduleProjectGraphRecomputation(
   deletedFiles: string[]
 ) {
   ++fileChangeCounter;
-  for (let f of [...createdFiles, ...updatedFiles]) {
+
+  // Hash the changed files up front and drop no-op rewrites before they can
+  // trigger an expensive recompute. Restoring a cached task output, a
+  // `git checkout` back to the same content, or a formatter that changes
+  // nothing all rewrite a file (new inode) the watcher reports as changed
+  // even though the bytes are identical. updateFilesInContext updates the
+  // workspace context and returns only the files whose content actually
+  // changed. Hashing here — once per watcher batch — rather than inside the
+  // recompute keeps it off the stale-retry path, which would otherwise see
+  // "no change" after the first pass already updated the context hashes.
+  performance.mark('hash-watched-changes-start');
+  const changedFileHashes =
+    createdFiles.length > 0 ||
+    updatedFiles.length > 0 ||
+    deletedFiles.length > 0
+      ? (updateFilesInContext(
+          workspaceRoot,
+          [...createdFiles, ...updatedFiles],
+          deletedFiles
+        ) ?? {})
+      : {};
+  performance.mark('hash-watched-changes-end');
+  performance.measure(
+    'hash changed files from watcher',
+    'hash-watched-changes-start',
+    'hash-watched-changes-end'
+  );
+
+  for (const [f, hash] of Object.entries(changedFileHashes)) {
     collectedDeletedFiles.delete(f);
-    collectedUpdatedFiles.set(f, fileChangeCounter);
+    collectedUpdatedFiles.set(f, { version: fileChangeCounter, hash });
   }
 
   for (let f of deletedFiles) {
@@ -236,11 +319,7 @@ export function scheduleProjectGraphRecomputation(
 
   // The native watcher already coalesces a burst of events into one batch,
   // so socket + listener notifications dispatch immediately.
-  if (
-    createdFiles.length > 0 ||
-    updatedFiles.length > 0 ||
-    deletedFiles.length > 0
-  ) {
+  if (Object.keys(changedFileHashes).length > 0 || deletedFiles.length > 0) {
     notifyFileChangeListeners({ createdFiles, updatedFiles, deletedFiles });
     notifyFileWatcherSockets(createdFiles, updatedFiles, deletedFiles);
     // Bump generation synchronously so any in-flight compute fails its
@@ -372,22 +451,18 @@ async function processFilesAndCreateAndSerializeProjectGraph(
   };
 
   try {
-    performance.mark('hash-watched-changes-start');
     const updatedFilesSnapshot = new Map(collectedUpdatedFiles);
     const deletedFilesSnapshot = new Map(collectedDeletedFiles);
     const updatedFiles = [...updatedFilesSnapshot.keys()];
     const deletedFiles = [...deletedFilesSnapshot.keys()];
-    let updatedFileHashes = updateFilesInContext(
-      workspaceRoot,
-      updatedFiles,
-      deletedFiles
-    );
-    performance.mark('hash-watched-changes-end');
-    performance.measure(
-      'hash changed files from watcher',
-      'hash-watched-changes-start',
-      'hash-watched-changes-end'
-    );
+    // Hashes were already computed (and the workspace context updated) in
+    // scheduleProjectGraphRecomputation, which also dropped no-op rewrites.
+    // Reuse them so the context isn't re-hashed on every (possibly stale)
+    // recompute attempt.
+    const updatedFileHashes: Record<string, string> = {};
+    for (const [f, { hash }] of updatedFilesSnapshot) {
+      updatedFileHashes[f] = hash;
+    }
     serverLogger.requestLog(
       `Updated workspace context based on watched changes, recomputing project graph...`
     );
@@ -442,8 +517,8 @@ async function processFilesAndCreateAndSerializeProjectGraph(
     // from the daemon's view (project graph misses recently added files).
     // Match version-stamps so a file modified mid-flight (higher version)
     // stays in the queue for reprocessing.
-    for (const [f, version] of updatedFilesSnapshot) {
-      if (collectedUpdatedFiles.get(f) === version) {
+    for (const [f, { version }] of updatedFilesSnapshot) {
+      if (collectedUpdatedFiles.get(f)?.version === version) {
         collectedUpdatedFiles.delete(f);
       }
     }
@@ -548,7 +623,7 @@ async function createAndSerializeProjectGraph({
         fileMap,
         rustReferences,
         currentProjectFileMapCache || readFileMapCache(),
-        await getPlugins(),
+        await getPlugins(readNxJson(workspaceRoot)),
         sourceMaps
       );
 

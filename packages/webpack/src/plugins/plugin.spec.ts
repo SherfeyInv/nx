@@ -7,19 +7,19 @@ jest.mock('@nx/devkit', () => ({
 }));
 
 // Needed so the current environment is not used
-jest.mock('@nx/js/src/utils/typescript/ts-solution-setup', () => ({
-  ...jest.requireActual('@nx/js/src/utils/typescript/ts-solution-setup'),
+jest.mock('@nx/js/internal', () => ({
+  ...jest.requireActual('@nx/js/internal'),
   isUsingTsSolutionSetup: jest.fn(() => false),
 }));
 
-import { CreateNodesContextV2 } from '@nx/devkit';
+import { CreateNodesContext } from '@nx/devkit';
 import { createNodesV2 } from './plugin';
-import { TempFs } from 'nx/src/internal-testing-utils/temp-fs';
 import { join } from 'path';
+import { TempFs } from '@nx/devkit/internal-testing-utils';
 
 describe('@nx/webpack/plugin', () => {
   let createNodesFunction = createNodesV2[1];
-  let context: CreateNodesContextV2;
+  let context: CreateNodesContext;
   let tempFs: TempFs;
   let originalCacheProjectGraph = process.env.NX_CACHE_PROJECT_GRAPH;
 
@@ -130,10 +130,10 @@ describe('@nx/webpack/plugin', () => {
                       ],
                     },
                     "options": {
-                      "args": [
-                        "--node-env=production",
-                      ],
                       "cwd": "my-app",
+                      "env": {
+                        "NODE_ENV": "production",
+                      },
                     },
                     "outputs": [
                       "{projectRoot}/dist/foo",
@@ -160,10 +160,10 @@ describe('@nx/webpack/plugin', () => {
                       ],
                     },
                     "options": {
-                      "args": [
-                        "--node-env=development",
-                      ],
                       "cwd": "my-app",
+                      "env": {
+                        "NODE_ENV": "development",
+                      },
                     },
                   },
                   "preview-site": {
@@ -187,10 +187,10 @@ describe('@nx/webpack/plugin', () => {
                       ],
                     },
                     "options": {
-                      "args": [
-                        "--node-env=production",
-                      ],
                       "cwd": "my-app",
+                      "env": {
+                        "NODE_ENV": "production",
+                      },
                     },
                   },
                   "serve-static": {
@@ -206,7 +206,7 @@ describe('@nx/webpack/plugin', () => {
                     },
                   },
                   "watch-deps": {
-                    "command": "npx nx watch --projects my-app --includeDependentProjects -- npx nx build-deps my-app",
+                    "command": "npx nx watch --projects my-app --includeDependencies -- npx nx build-deps my-app",
                     "continuous": true,
                     "dependsOn": [
                       "build-deps",

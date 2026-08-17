@@ -11,7 +11,7 @@ import {
   updateNxJson,
   updateProjectConfiguration,
 } from '@nx/devkit';
-import { forEachExecutorOptions } from '@nx/devkit/src/generators/executor-options-utils';
+import { forEachExecutorOptions } from '@nx/devkit/internal';
 import { nxVersion } from '../../utils/versions';
 
 type PluginEntry = ExpandedPluginConfiguration<Record<string, unknown>>;
@@ -140,6 +140,10 @@ function migrateTargetDefaults(tree: Tree): boolean {
   for (const [targetOrExecutor, targetConfig] of Object.entries(
     nxJson.targetDefaults
   )) {
+    if (Array.isArray(targetConfig)) {
+      // This migration predates the filtered array value form; values are plain objects here.
+      continue;
+    }
     if (targetOrExecutor === '@nx/vite:test') {
       nxJson.targetDefaults['@nx/vitest:test'] ??= {};
       Object.assign(nxJson.targetDefaults['@nx/vitest:test'], targetConfig);

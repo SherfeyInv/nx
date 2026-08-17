@@ -1,4 +1,4 @@
-import type { FoundTarget } from '@nx/cypress/src/utils/find-target-options';
+import type { FoundTarget } from '@nx/cypress/internal';
 import {
   addDependenciesToPackageJson,
   joinPathFragments,
@@ -7,11 +7,11 @@ import {
   Tree,
   visitNotIgnoredFiles,
 } from '@nx/devkit';
-import { getProjectSourceRoot } from '@nx/js/src/utils/typescript/ts-solution-setup';
-import { nxVersion } from 'nx/src/utils/versions';
+import { getProjectSourceRoot } from '@nx/js/internal';
 import { getActualBundler, isComponent } from '../../../utils/ct-utils';
 import { componentTestGenerator } from '../../component-test/component-test';
 import type { CypressComponentConfigurationSchema } from '../schema';
+import { nxVersion } from '@nx/devkit/internal';
 
 export async function addFiles(
   tree: Tree,
@@ -21,10 +21,10 @@ export async function addFiles(
 ) {
   // must dynamicaly import to prevent packages not using cypress from erroring out
   // when importing react
-  const { addMountDefinition } = await import('@nx/cypress/src/utils/config');
-  const { getInstalledCypressMajorVersion } = await import(
-    '@nx/cypress/src/utils/versions'
-  );
+  const {
+    addMountDefinition,
+    getInstalledCypressMajorVersion,
+  }: typeof import('@nx/cypress/internal') = require('@nx/cypress/internal');
   const installedCypressMajorVersion = getInstalledCypressMajorVersion(tree);
 
   // Specifically undefined to allow Remix workaround of passing an empty string
@@ -60,14 +60,26 @@ export async function addFiles(
     options.bundler === 'webpack' ||
     (!options.bundler && actualBundler === 'webpack')
   ) {
-    addDependenciesToPackageJson(tree, {}, { '@nx/webpack': nxVersion });
+    addDependenciesToPackageJson(
+      tree,
+      {},
+      { '@nx/webpack': nxVersion },
+      undefined,
+      true
+    );
   }
 
   if (
     options.bundler === 'vite' ||
     (!options.bundler && actualBundler === 'vite')
   ) {
-    addDependenciesToPackageJson(tree, {}, { '@nx/vite': nxVersion });
+    addDependenciesToPackageJson(
+      tree,
+      {},
+      { '@nx/vite': nxVersion },
+      undefined,
+      true
+    );
   }
 
   if (options.generateTests) {

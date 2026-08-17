@@ -1,7 +1,8 @@
-use super::process_killer::ProcessKiller;
-use crate::native::pseudo_terminal::pseudo_terminal::{ParserArc, WriterArc};
+use super::process_killer::{ProcessKiller, normalize_signal};
+use crate::native::pseudo_terminal::pseudo_terminal::{MasterArc, ParserArc, WriterArc};
 use crossbeam_channel::Sender;
 use crossbeam_channel::{Receiver, bounded, select};
+use napi::Either;
 use napi::bindgen_prelude::External;
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode::NonBlocking};
 use napi::{Status, bindgen_prelude::Unknown};
@@ -24,12 +25,14 @@ pub struct ChildProcess {
     pub(crate) wait_receiver: Receiver<String>,
     thread_handles: Vec<Sender<()>>,
     writer_arc: Arc<Mutex<Box<dyn Write + Send>>>,
+    master_arc: MasterArc,
 }
 #[napi]
 impl ChildProcess {
     pub fn new(
         parser: Arc<RwLock<Parser>>,
         writer_arc: Arc<Mutex<Box<dyn Write + Send>>>,
+        master_arc: MasterArc,
         pid: i32,
         process_killer: ProcessKiller,
         message_receiver: Receiver<String>,
@@ -38,6 +41,7 @@ impl ChildProcess {
         Self {
             parser,
             writer_arc,
+            master_arc,
             pid,
             process_killer,
             message_receiver,
@@ -47,8 +51,12 @@ impl ChildProcess {
     }
 
     #[napi]
-    pub fn get_parser_and_writer(&mut self) -> External<(ParserArc, WriterArc)> {
-        External::new((self.parser.clone(), self.writer_arc.clone()))
+    pub fn get_pty_handles(&mut self) -> External<(ParserArc, WriterArc, MasterArc)> {
+        External::new((
+            self.parser.clone(),
+            self.writer_arc.clone(),
+            self.master_arc.clone(),
+        ))
     }
 
     #[napi]
@@ -56,10 +64,11 @@ impl ChildProcess {
         self.pid
     }
 
-    #[napi(ts_args_type = "signal?: NodeJS.Signals")]
-    pub fn kill(&mut self, signal: Option<String>) -> anyhow::Result<()> {
-        let signal = signal.as_deref();
-        self.process_killer.kill(signal)
+    #[napi(ts_args_type = "signal?: NodeJS.Signals | number")]
+    pub fn kill(&mut self, signal: Option<Either<String, i32>>) -> anyhow::Result<()> {
+        let signal_str = normalize_signal(signal.as_ref());
+        self.process_killer.kill(signal_str);
+        Ok(())
     }
 
     #[napi]

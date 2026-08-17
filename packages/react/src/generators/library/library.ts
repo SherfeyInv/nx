@@ -1,4 +1,9 @@
-import { getRelativeCwd, logShowProjectCommand } from '@nx/devkit/internal';
+import {
+  getRelativeCwd,
+  logShowProjectCommand,
+  type PackageJson,
+} from '@nx/devkit/internal';
+import { assertSupportedReactVersion } from '../../utils/assert-supported-react-version';
 import {
   addProjectConfiguration,
   ensurePackage,
@@ -21,14 +26,11 @@ import {
   addReleaseConfigForNonTsSolution,
   addReleaseConfigForTsSolution,
   releaseTasks,
-} from '@nx/js/src/generators/library/utils/add-release-config';
-import { sortPackageJsonFields } from '@nx/js/src/utils/package-json/sort-fields';
-import {
+  sortPackageJsonFields,
   addProjectToTsSolutionWorkspace,
   shouldConfigureTsSolutionSetup,
   updateTsconfigFiles,
-} from '@nx/js/src/utils/typescript/ts-solution-setup';
-import type { PackageJson } from 'nx/src/utils/package-json';
+} from '@nx/js/internal';
 import { extractTsConfigBase } from '../../utils/create-ts-config';
 import { updateJestConfigContent } from '../../utils/jest-utils';
 import { maybeJs } from '../../utils/maybe-js';
@@ -54,6 +56,8 @@ export async function libraryGenerator(host: Tree, schema: Schema) {
 }
 
 export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
+  assertSupportedReactVersion(host);
+
   const tasks: GeneratorCallback[] = [];
 
   const addTsPlugin = shouldConfigureTsSolutionSetup(host, schema.addPlugin);
@@ -149,7 +153,7 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
         includeLib: true,
         includeVitest: options.unitTestRunner === 'vitest',
         inSourceTests: options.inSourceTests,
-        rollupOptionsExternal: [
+        rolldownOptionsExternal: [
           "'react'",
           "'react-dom'",
           "'react/jsx-runtime'",
@@ -205,7 +209,9 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
       nxVersion
     );
     ensurePackage('@nx/vitest', nxVersion);
-    const { configurationGenerator } = await import('@nx/vitest/generators');
+    const {
+      configurationGenerator,
+    }: typeof import('@nx/vitest/generators') = require('@nx/vitest/generators');
     const vitestTask = await configurationGenerator(host, {
       uiFramework: 'react',
       project: options.name,
@@ -224,7 +230,7 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
         includeLib: true,
         includeVitest: true,
         inSourceTests: options.inSourceTests,
-        rollupOptionsExternal: [
+        rolldownOptionsExternal: [
           "'react'",
           "'react-dom'",
           "'react/jsx-runtime'",
@@ -246,7 +252,7 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
     const path = joinPathFragments(
       options.projectRoot,
       'src/lib',
-      options.fileName
+      options.js ? `${options.fileName}.js` : options.fileName
     );
     const componentTask = await componentGenerator(host, {
       path: relativeCwd ? relative(relativeCwd, path) : path,
@@ -256,7 +262,6 @@ export async function libraryGeneratorInternal(host: Tree, schema: Schema) {
         (options.unitTestRunner === 'vitest' && options.inSourceTests == true),
       export: true,
       routing: options.routing,
-      js: options.js,
       name: options.name,
       inSourceTests: options.inSourceTests,
       skipFormat: true,

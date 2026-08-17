@@ -1,9 +1,74 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getEnvFilesForTask, loadAndExpandDotEnvFile } from './task-env';
-import { Task } from '../config/task-graph';
 import { ProjectGraph } from '../config/project-graph';
+import { Task } from '../config/task-graph';
+import {
+  getEnvFilesForTask,
+  getEnvVariablesForTask,
+  getForceColorForChild,
+  loadAndExpandDotEnvFile,
+} from './task-env';
+
+describe('NX_INVOCATION_ROOT_PID', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    delete process.env.NX_INVOCATION_ROOT_PID;
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  function makeTask(
+    project: string,
+    target: string,
+    configuration?: string
+  ): Task {
+    let id = `${project}:${target}`;
+    if (configuration) {
+      id += `:${configuration}`;
+    }
+    return {
+      id,
+      target: { project, target, configuration },
+      overrides: {},
+      outputs: [],
+      projectRoot: `libs/${project}`,
+    } as any as Task;
+  }
+
+  it('should set NX_INVOCATION_ROOT_PID to current process PID when no existing root PID', () => {
+    const task = makeTask('workspace', 'dev');
+    const env = getEnvVariablesForTask(
+      task,
+      {},
+      'true',
+      false,
+      false,
+      '',
+      false
+    );
+    expect(env.NX_INVOCATION_ROOT_PID).toBe(String(process.pid));
+  });
+
+  it('should preserve NX_INVOCATION_ROOT_PID from parent Nx process', () => {
+    process.env.NX_INVOCATION_ROOT_PID = '12345';
+    const task = makeTask('workspace', 'dev');
+    const env = getEnvVariablesForTask(
+      task,
+      {},
+      'true',
+      false,
+      false,
+      '',
+      false
+    );
+    expect(env.NX_INVOCATION_ROOT_PID).toBe('12345');
+  });
+});
 
 describe(loadAndExpandDotEnvFile.name, () => {
   let tempDir: string;
@@ -205,5 +270,37 @@ describe('getEnvFilesForTask', () => {
     } as any as ProjectGraph;
     const envFiles = getEnvFilesForTask(task, graph);
     expect(envFiles).toMatchSnapshot();
+  });
+});
+
+describe('getForceColorForChild', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('should return FORCE_COLOR when it is explicitly set', () => {
+    process.env.FORCE_COLOR = '1';
+    delete process.env.NX_ORIGINAL_FORCE_COLOR;
+    expect(getForceColorForChild()).toBe('1');
+  });
+
+  it('should return "0" when NX_ORIGINAL_FORCE_COLOR is "0" and FORCE_COLOR was deleted', () => {
+    delete process.env.FORCE_COLOR;
+    process.env.NX_ORIGINAL_FORCE_COLOR = '0';
+    expect(getForceColorForChild()).toBe('0');
+  });
+
+  it('should default to "true" when neither FORCE_COLOR nor NX_ORIGINAL_FORCE_COLOR is set', () => {
+    delete process.env.FORCE_COLOR;
+    delete process.env.NX_ORIGINAL_FORCE_COLOR;
+    expect(getForceColorForChild()).toBe('true');
+  });
+
+  it('should prefer FORCE_COLOR over NX_ORIGINAL_FORCE_COLOR when both are set', () => {
+    process.env.FORCE_COLOR = '3';
+    process.env.NX_ORIGINAL_FORCE_COLOR = '0';
+    expect(getForceColorForChild()).toBe('3');
   });
 });

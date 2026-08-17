@@ -1,7 +1,7 @@
 import type * as ts from 'typescript';
 import { findNodes } from '@nx/js';
 import { ChangeType, logger, StringChange, StringInsertion } from '@nx/devkit';
-import { ensureTypescript } from '@nx/js/src/utils/typescript/ensure-typescript';
+import { ensureTypescript } from '@nx/js/internal';
 
 let tsModule: typeof import('typescript');
 
@@ -378,12 +378,12 @@ export function addInitialRoutes(
     <br/>
     <hr/>
     <br/>
-    <div role="navigation">
+    <nav>
       <ul>
         <li><Link to="/">Home</Link></li>
         <li><Link to="/page-2">Page 2</Link></li>
       </ul>
-    </div>
+    </nav>
     <Routes>
       <Route
         path="/"

@@ -7,8 +7,10 @@ import type {
   ProjectGraphProjectNode,
 } from '../../../config/project-graph';
 import type { Tree } from '../../../generators/tree';
-import { registerTsProject } from '../../../plugins/js/utils/register';
-import { getRootTsConfigPath } from '../../../plugins/js/utils/typescript';
+import {
+  loadTsFile,
+  requireWithTsconfigFallback,
+} from '../../../plugins/js/utils/register';
 import { interpolate } from '../../../tasks-runner/utils';
 import { workspaceRoot } from '../../../utils/workspace-root';
 import { DEFAULT_VERSION_ACTIONS_PATH } from '../config/config';
@@ -139,12 +141,9 @@ export async function resolveVersionActionsForProject(
     VersionActionsClass = cachedData.VersionActionsClass;
     afterAllProjectsVersioned = cachedData.afterAllProjectsVersioned;
   } else {
-    let cleanupTranspiler: () => void;
-    if (versionActionsPath.endsWith('.ts')) {
-      cleanupTranspiler = registerTsProject(getRootTsConfigPath());
-    }
-    const loaded = require(versionActionsPath);
-    cleanupTranspiler?.();
+    const loaded = /\.[cm]?ts$/.test(versionActionsPath)
+      ? loadTsFile<any>(versionActionsPath)
+      : requireWithTsconfigFallback<any>(versionActionsPath);
     VersionActionsClass = loaded.default ?? loaded;
     if (!VersionActionsClass) {
       throw new Error(
@@ -188,6 +187,14 @@ export abstract class VersionActions {
    * If a manifest file is not applicable to the current versioning use-case, this should be set to null.
    */
   abstract validManifestFilenames: string[] | null;
+  /**
+   * Whether manifests updated by this implementation should be excluded from
+   * the final Prettier pass performed by Nx Release.
+   *
+   * Custom implementations must opt in explicitly. This defaults to false so
+   * their existing formatting behavior does not change.
+   */
+  excludeManifestsFromFormatting = false;
   /**
    * The interpolated manifest paths to update, if applicable based on the user's configuration, when new
    * versions and dependencies are determined. If no manifest files should be updated based on the user's

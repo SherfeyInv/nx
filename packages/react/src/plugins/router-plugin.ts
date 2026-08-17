@@ -4,10 +4,12 @@ import {
   clearRequireCache,
   loadConfigFile,
   PluginCache,
+  hashObject,
+  workspaceDataDirectory,
 } from '@nx/devkit/internal';
 import {
-  type CreateNodesV2,
-  type CreateNodesContextV2,
+  type CreateNodes,
+  type CreateNodesContext,
   detectPackageManager,
   type TargetConfiguration,
   createNodesFromFiles,
@@ -18,12 +20,11 @@ import {
 
 import { dirname, join } from 'path';
 import { readdirSync } from 'fs';
-import { workspaceDataDirectory } from 'nx/src/utils/cache-directory';
 import { getLockFileName } from '@nx/js';
-import { hashObject } from 'nx/src/devkit-internals';
-import { addBuildAndWatchDepsTargets } from '@nx/js/src/plugins/typescript/util';
-import { isUsingTsSolutionSetup as _isUsingTsSolutionSetup } from '@nx/js/src/utils/typescript/ts-solution-setup';
-
+import {
+  addBuildAndWatchDepsTargets,
+  isUsingTsSolutionSetup as _isUsingTsSolutionSetup,
+} from '@nx/js/internal';
 export interface ReactRouterPluginOptions {
   buildTargetName?: string;
   devTargetName?: string;
@@ -41,7 +42,7 @@ type ReactRouterTargets = Pick<
 const pmCommand = getPackageManagerCommand();
 const reactRouterConfigBlob = '**/react-router.config.{ts,js,cjs,cts,mjs,mts}';
 
-export const createNodesV2: CreateNodesV2<ReactRouterPluginOptions> = [
+export const createNodes: CreateNodes<ReactRouterPluginOptions> = [
   reactRouterConfigBlob,
   async (configFiles, options, context) => {
     const optionsHash = hashObject(options);
@@ -134,11 +135,16 @@ export const createNodesV2: CreateNodesV2<ReactRouterPluginOptions> = [
   },
 ];
 
+/**
+ * @deprecated Use {@link createNodes} instead. This will be removed in Nx 24.
+ */
+export const createNodesV2 = createNodes;
+
 async function buildReactRouterTargets(
   configFilePath: string,
   projectRoot: string,
   options: ReactRouterPluginOptions,
-  context: CreateNodesContextV2,
+  context: CreateNodesContext,
   siblingFiles: string[],
   isUsingTsSolutionSetup: boolean
 ): Promise<ReactRouterTargets> {
@@ -350,7 +356,7 @@ function normalizeOptions(options: ReactRouterPluginOptions) {
 
 function checkIfConfigFileShouldBeProject(
   projectRoot: string,
-  context: CreateNodesContextV2
+  context: CreateNodesContext
 ): boolean {
   // Do not create a project if package.json and project.json isn't there.
   const siblingFiles = readdirSync(join(context.workspaceRoot, projectRoot));
